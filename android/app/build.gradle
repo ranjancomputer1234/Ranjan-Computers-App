@@ -1,0 +1,173 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+def rediUseEmbeddedJs = (project.findProperty("redi.useEmbeddedJs") ?: "true").toString() == "true"
+def rediFirebaseConfig = file("google-services.json")
+def rediFirebaseEnabled = rediFirebaseConfig.isFile()
+
+def loadDotEnv = { File envFile ->
+    def map = new LinkedHashMap<String, String>()
+    if (envFile == null || !envFile.isFile()) return map
+    envFile.eachLine("UTF-8") { raw ->
+        def line = raw.replace("\uFEFF", "").trim()
+        if (!line || line.startsWith("#")) return
+        def eq = line.indexOf("=")
+        if (eq <= 0) return
+        def key = line.substring(0, eq).trim()
+        def value = line.substring(eq + 1).trim()
+        if (value.length() >= 2) {
+            def quotedValue = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))
+            if (quotedValue) value = value.substring(1, value.length() - 1)
+        }
+        map[key] = value
+    }
+    return map
+}
+
+// Only the project-root .env is read. .env.example is never loaded.
+// Server secrets (offline grant, Mux, Cloudinary) stay in .env and are not copied into BuildConfig.
+def dotenv = loadDotEnv(new File(rootProject.projectDir, "../.env"))
+def rediValue = { name, fallback = "" ->
+    def fromFile = dotenv[name]
+    if (fromFile != null && !fromFile.toString().trim().isEmpty()) return fromFile.toString()
+    return providers.gradleProperty(name).orElse(providers.environmentVariable(name)).getOrElse(fallback)
+}
+def quoted = { value -> '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"' }
+def uploadStore = rediValue("REDI_UPLOAD_STORE_FILE")
+def hasUploadKey = !uploadStore.isEmpty()
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    /* Variants */
+    // When embedding JS, debug builds must package the bundle (do not skip bundling).
+    if (rediUseEmbeddedJs) {
+        debuggableVariants = []
+    }
+
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+/**
+ * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ */
+def enableProguardInReleaseBuilds = true
+
+/**
+ * The preferred build flavor of JavaScriptCore (JSC)
+ *
+ * For example, to use the international variant, you can use:
+ * `def jscFlavor = io.github.react-native-community:jsc-android-intl:2026004.+`
+ *
+ * The international variant includes ICU i18n library and necessary data
+ * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
+ * give correct results when using with locales other than en-US. Note that
+ * this variant is about 6MiB larger per architecture than default.
+ */
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "com.rediapp.learner"
+    defaultConfig {
+        applicationId "com.rediapp.learner"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode rediValue("REDI_VERSION_CODE", "1").toInteger()
+        versionName rediValue("REDI_VERSION_NAME", "1.0.0")
+        buildConfigField "boolean", "REDI_USE_EMBEDDED_JS", rediUseEmbeddedJs ? "true" : "false"
+        buildConfigField "String", "REDI_PRIVACY_POLICY_URL", quoted(rediValue("REDI_PRIVACY_POLICY_URL"))
+        buildConfigField "String", "REDI_ACCOUNT_DELETION_URL", quoted(rediValue("REDI_ACCOUNT_DELETION_URL"))
+        buildConfigField "String", "REDI_GOOGLE_WEB_CLIENT_ID", quoted(rediValue("REDI_GOOGLE_WEB_CLIENT_ID"))
+        buildConfigField "boolean", "REDI_FIREBASE_ENABLED", rediFirebaseEnabled ? "true" : "false"
+        buildConfigField "String", "REDI_TIMEOUT_MS", quoted(rediValue("REDI_TIMEOUT_MS", "15000"))
+        buildConfigField "String", "REDI_SEED_RIYA_EMAIL", '""'
+        buildConfigField "String", "REDI_SEED_RIYA_PASSWORD", '""'
+        buildConfigField "String", "REDI_SEED_ARJUN_EMAIL", '""'
+        buildConfigField "String", "REDI_SEED_ARJUN_PASSWORD", '""'
+        externalNativeBuild { cmake { arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON" } }
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        if (hasUploadKey) {
+            release {
+                storeFile file(uploadStore)
+                storePassword rediValue("REDI_UPLOAD_STORE_PASSWORD")
+                keyAlias rediValue("REDI_UPLOAD_KEY_ALIAS")
+                keyPassword rediValue("REDI_UPLOAD_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+            buildConfigField "String", "REDI_API_BASE_URL", quoted(rediValue("REDI_API_BASE_URL", "https://redi-api-production.up.railway.app/api"))
+            buildConfigField "String", "REDI_SEED_RIYA_EMAIL", quoted(rediValue("REDI_SEED_RIYA_EMAIL"))
+            buildConfigField "String", "REDI_SEED_RIYA_PASSWORD", quoted(rediValue("REDI_SEED_RIYA_PASSWORD"))
+            buildConfigField "String", "REDI_SEED_ARJUN_EMAIL", quoted(rediValue("REDI_SEED_ARJUN_EMAIL"))
+            buildConfigField "String", "REDI_SEED_ARJUN_PASSWORD", quoted(rediValue("REDI_SEED_ARJUN_PASSWORD"))
+            manifestPlaceholders = [usesCleartextTraffic: "true", firebaseInstallationIdEnabled: rediFirebaseEnabled ? "true" : "false"]
+        }
+        release {
+            if (hasUploadKey) signingConfig signingConfigs.release
+            buildConfigField "String", "REDI_API_BASE_URL", quoted(rediValue("REDI_API_BASE_URL", "https://redi-api-production.up.railway.app/api"))
+            manifestPlaceholders = [usesCleartextTraffic: "false", firebaseInstallationIdEnabled: rediFirebaseEnabled ? "true" : "false"]
+            minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+    packaging { jniLibs { useLegacyPackaging = false } }
+}
+
+tasks.register("verifyReleaseConfiguration") {
+    doLast {
+        ["REDI_API_BASE_URL", "REDI_PRIVACY_POLICY_URL", "REDI_ACCOUNT_DELETION_URL"].each { key ->
+            def value = rediValue(key)
+            def uri = value ? new URI(value) : null
+            if (uri == null || uri.scheme != "https" || !uri.host || uri.userInfo || uri.host.endsWith(".invalid") || uri.host == "localhost") {
+                throw new GradleException("${key} must be a real public HTTPS URL before a release can be built.")
+            }
+        }
+        if (!hasUploadKey || !file(uploadStore).isFile()) throw new GradleException("Provide your REDI_UPLOAD_STORE_FILE upload keystore; debug signing is never used for release.")
+        if (!rediFirebaseEnabled) throw new GradleException("Provide android/app/google-services.json before building a release with admin notifications.")
+        ["REDI_UPLOAD_STORE_PASSWORD", "REDI_UPLOAD_KEY_ALIAS", "REDI_UPLOAD_KEY_PASSWORD"].each { key ->
+            if (!rediValue(key)) throw new GradleException("Missing release signing setting: ${key}")
+        }
+        if (rediValue("REDI_UPLOAD_KEY_ALIAS") == "androiddebugkey") throw new GradleException("A debug key cannot sign the Play release.")
+        if (!(project.findProperty("reactNativeArchitectures") ?: "").toString().contains("arm64-v8a")) throw new GradleException("Play releases must include arm64-v8a.")
+    }
+}
+tasks.configureEach { if (name == "preReleaseBuild") dependsOn("verifyReleaseConfiguration") }
+
+dependencies {
+    implementation("com.android.billingclient:billing:8.3.0")
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}
+
+// Keep local builds working before the Firebase project is provisioned.
+// Production push activates automatically when android/app/google-services.json exists.
+if (rediFirebaseEnabled) {
+    apply plugin: "com.google.gms.google-services"
+}

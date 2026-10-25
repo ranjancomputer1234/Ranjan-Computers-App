@@ -1,0 +1,17 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "src/assets/fonts/Caveat.ttf",
+      "sha1": "7eebc2bf2bbfbd51b0dba7eaee8fd8f7b51a382a"
+    },
+    {
+      "path": "src/assets/fonts/Inter.ttf",
+      "sha1": "97d4f3722d62c6cc5340bf6220ada3d64ca367b1"
+    },
+    {
+      "path": "src/assets/fonts/JetBrainsMono.ttf",
+      "sha1": "bef242b36d905170007caed53cd6a07775dbfb82"
+    }
+  ]
+}

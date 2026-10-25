@@ -1,0 +1,6 @@
+<resources>
+    <color name="redi_splash_background">#000000</color>
+    <color name="redi_splash_accent">#FFD765</color>
+    <color name="redi_window_background">#F7F9FC</color>
+    <color name="redi_navigation_bar">#FFFFFF</color>
+</resources>

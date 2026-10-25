@@ -1,0 +1,602 @@
+src\navigation\TabNavigator.tsx:232:            accessibilityLabel={meta.label}
+src\navigation\RootNavigator.tsx:75:      <ClayButton label="Try again" onPress={() => void hydrate()} />
+src\navigation\RootNavigator.tsx:76:      <ClayButton label="Sign out" tone="ghost" onPress={() => void useSessionStore.getState().logout()} />
+src\components\ui\Clay.tsx:81:      accessibilityLabel={accessibilityLabel}
+src\components\layout\Screen.tsx:41:        <IconButton icon="back" onPress={onBack} accessibilityLabel="Back" />
+src\components\layout\Screen.tsx:69:            accessibilityLabel="Search"
+src\components\layout\Screen.tsx:77:            accessibilityLabel="Notifications"
+src\components\layout\Screen.tsx:85:            accessibilityLabel="Profile"
+src\components\layout\Screen.tsx:133:        <IconButton icon="back" onPress={onBack} accessibilityLabel="Back" />
+src\components\layout\Screen.tsx:163:            accessibilityLabel="Calendar"
+src\components\layout\Screen.tsx:170:            accessibilityLabel="Filters"
+src\components\layout\Screen.tsx:177:            accessibilityLabel="Share"
+src\components\layout\Screen.tsx:185:            accessibilityLabel={bookmarkActive ? 'Remove bookmark' : 'Bookmark'}
+src\components\layout\Screen.tsx:193:            accessibilityLabel="Notifications"
+src\components\layout\Screen.tsx:200:            accessibilityLabel="More options"
+src\components\ui\ClayToggle.tsx:20:      accessibilityLabel={accessibilityLabel}
+src\components\ui\AppText.tsx:15:  style?: StyleProp<TextStyle>;
+src\components\ui\AppText.tsx:30:    <Text
+src\components\ui\Feedback.tsx:81:      {actionLabel ? <ClayButton label={actionLabel} onPress={onAction} compact /> : null}
+src\components\ui\Feedback.tsx:87:  return <EmptyState title="Couldn’t load this" body={message} actionLabel={onRetry ? 'Retry' : undefined} onAction={onRetry} />;
+src\components\ui\Feedback.tsx:182:      accessibilityLabel={label}
+src\components\ui\Inputs.tsx:5:  TextInput,
+src\components\ui\Inputs.tsx:7:  type TextInputProps,
+src\components\ui\Inputs.tsx:57:      <TextInput
+src\components\ui\Inputs.tsx:60:        placeholder={placeholder}
+src\components\ui\Inputs.tsx:75:          accessibilityLabel="Clear search"
+src\components\ui\Inputs.tsx:87:          accessibilityLabel="Voice search"
+src\components\ui\Inputs.tsx:104:}: TextInputProps & {
+src\components\ui\Inputs.tsx:121:      <TextInput
+src\components\ui\Inputs.tsx:122:        accessibilityLabel={label ?? rest.placeholder}
+src\components\ui\Inputs.tsx:142:          accessibilityLabel={label}
+src\components\ui\Inputs.tsx:176:        <TextInput
+src\components\ui\Inputs.tsx:179:          placeholder="Password"
+src\components\ui\Inputs.tsx:180:          accessibilityLabel="Password"
+src\components\ui\Inputs.tsx:192:          accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+src\components\ui\Inputs.tsx:225:        <TextInput
+src\components\ui\Inputs.tsx:230:          placeholder="Phone number"
+src\components\ui\Inputs.tsx:231:          accessibilityLabel="Phone number"
+src\screens\courses\CourseDetailScreen.tsx:102:      Alert.alert(
+src\screens\courses\CourseDetailScreen.tsx:110:      Alert.alert('Could not update saved course', 'Please try again.'),
+src\screens\courses\CourseDetailScreen.tsx:142:      Alert.alert(
+src\screens\courses\CourseDetailScreen.tsx:266:        title="Course Detail"
+src\screens\courses\CourseDetailScreen.tsx:267:        subtitle="Computer Courses"
+src\screens\courses\CourseDetailScreen.tsx:311:                  accessibilityLabel={`Demo artwork for ${data.title}`}
+src\screens\courses\CourseDetailScreen.tsx:351:                accessibilityLabel={`Resume ${nextLesson?.title ?? data.title}`}
+src\screens\courses\CourseDetailScreen.tsx:420:                  title="Course Content"
+src\screens\courses\CourseDetailScreen.tsx:450:                    title="Lessons are on the way"
+src\screens\courses\CourseDetailScreen.tsx:457:                    <SectionHeader title="Instructor" />
+src\screens\courses\CourseDetailScreen.tsx:541:                label={
+src\screens\courses\CourseDetailScreen.tsx:619:      accessibilityLabel={`${lesson.title}, ${status}`}
+src\screens\courses\CourseDetailScreen.tsx:684:      <SectionHeader title="About this course" />
+src\screens\courses\CourseDetailScreen.tsx:692:          <SectionHeader title="What you’ll learn" />
+src\screens\courses\CourseDetailScreen.tsx:705:      <SectionHeader title="Requirements" />
+src\screens\courses\CourseDetailScreen.tsx:732:      <SectionHeader title="Learner Reviews" />
+src\screens\courses\CourseDetailScreen.tsx:745:        title="No written reviews yet"
+src\screens\awareness\TopicDetailScreen.tsx:276:        title="Topic guide"
+src\screens\awareness\TopicDetailScreen.tsx:277:        subtitle={data?.title}
+src\screens\awareness\TopicDetailScreen.tsx:365:              title="This guide is locked"
+src\screens\awareness\TopicDetailScreen.tsx:370:              title="No study cards published"
+src\screens\awareness\TopicDetailScreen.tsx:384:                    title="Focus cards"
+src\screens\awareness\TopicDetailScreen.tsx:449:                        accessibilityLabel={
+src\screens\awareness\TopicDetailScreen.tsx:495:                            label="Practice again"
+src\screens\awareness\TopicDetailScreen.tsx:502:                            label={
+src\screens\awareness\TopicDetailScreen.tsx:516:                          label="Reveal answer"
+src\screens\awareness\TopicDetailScreen.tsx:526:                      accessibilityLabel="Previous card"
+src\screens\awareness\TopicDetailScreen.tsx:559:                      accessibilityLabel="Next card"
+src\screens\awareness\TopicDetailScreen.tsx:579:                    title="All key facts"
+src\screens\awareness\TopicDetailScreen.tsx:587:                    placeholder="Search names or answers"
+src\screens\awareness\TopicDetailScreen.tsx:650:                      title="No matching facts"
+src\screens\awareness\TopicDetailScreen.tsx:662:                    title="Quick recall"
+src\screens\awareness\TopicDetailScreen.tsx:713:                          label="Review cards"
+src\screens\awareness\TopicDetailScreen.tsx:720:                          label="Try again"
+src\screens\awareness\TopicDetailScreen.tsx:850:                        label={
+src\screens\exams\ExamDetailScreen.tsx:329:      accessibilityLabel={`${item.title}, ${item.topics} topics`}
+src\screens\exams\ExamDetailScreen.tsx:394:      accessibilityLabel={`Open ${test.title}`}
+src\screens\exams\ExamDetailScreen.tsx:489:          accessibilityLabel="Hide study plan"
+src\screens\exams\ExamDetailScreen.tsx:572:        title="Exam Detail"
+src\screens\exams\ExamDetailScreen.tsx:573:        subtitle="Competitive Exams"
+src\screens\exams\ExamDetailScreen.tsx:716:                  title="Syllabus"
+src\screens\exams\ExamDetailScreen.tsx:735:                  title="Popular Tests"
+src\screens\exams\ExamDetailScreen.tsx:757:                    title="Tests are on the way"
+src\screens\exams\ExamDetailScreen.tsx:767:                  title="Test Series"
+src\screens\exams\ExamDetailScreen.tsx:815:                    title="No tests yet"
+src\screens\exams\ExamDetailScreen.tsx:824:                <SectionHeading title="Free Videos" />
+src\screens\exams\ExamDetailScreen.tsx:842:                    label="Explore mock tests"
+src\screens\exams\ExamDetailScreen.tsx:853:                label="Study plan"
+src\screens\exams\ExamDetailScreen.tsx:860:                label={freeTest ? 'Start free mock' : 'View test series'}
+src\screens\facts\AmazingFactsScreen.tsx:170:            accessibilityLabel={fact.reacted ? 'Unlike fact' : 'Like fact'}
+src\screens\facts\AmazingFactsScreen.tsx:187:            accessibilityLabel="Save fact"
+src\screens\facts\AmazingFactsScreen.tsx:225:      Alert.alert(
+src\screens\facts\AmazingFactsScreen.tsx:321:                title="No daily fact yet"
+src\screens\facts\AmazingFactsScreen.tsx:481:              label="Browse all facts"
+src\screens\facts\AmazingFactsScreen.tsx:492:              title="No categories yet"
+src\screens\catalog\ExploreSectionsScreen.tsx:169:          placeholder="Search skills, exams, news and more"
+src\screens\catalog\ExploreSectionsScreen.tsx:186:                accessibilityLabel={`Show ${item.label.toLowerCase()} sections`}
+src\screens\catalog\ExploreSectionsScreen.tsx:224:              accessibilityLabel={`Open recommended section, ${recommended.title}`}
+src\screens\catalog\ExploreSectionsScreen.tsx:294:            <ClayButton label="View all sections" compact onPress={resetFilters} />
+src\screens\catalog\ExploreSectionsScreen.tsx:309:              label="Start free"
+src\screens\awareness\GeneralAwarenessScreen.tsx:331:              placeholder="Search topics, places or subjects"
+src\screens\awareness\GeneralAwarenessScreen.tsx:403:              title="No topics found"
+src\screens\exams\CompetitiveExamsScreen.tsx:160:            accessibilityLabel={test ? `Start ${test.title}` : 'Browse mock tests'}
+src\screens\exams\CompetitiveExamsScreen.tsx:213:      accessibilityLabel={`${title}. ${subtitle}`}
+src\screens\exams\CompetitiveExamsScreen.tsx:290:      accessibilityLabel={`Open ${exam.title}`}
+src\screens\exams\CompetitiveExamsScreen.tsx:475:                title="Mock tests"
+src\screens\exams\CompetitiveExamsScreen.tsx:476:                subtitle="Train with a timer"
+src\screens\exams\CompetitiveExamsScreen.tsx:482:                title="Free prep"
+src\screens\exams\CompetitiveExamsScreen.tsx:483:                subtitle="Start at no cost"
+src\screens\exams\CompetitiveExamsScreen.tsx:489:                title="Top picks"
+src\screens\exams\CompetitiveExamsScreen.tsx:490:                subtitle="Popular with learners"
+src\screens\exams\CompetitiveExamsScreen.tsx:497:              placeholder="Search SSC, Banking, Railway, UPSC..."
+src\screens\exams\CompetitiveExamsScreen.tsx:619:              title="No matching exam tracks"
+src\screens\facts\FactDetailScreen.tsx:25:      <DetailHeader title="Fact" onBack={() => navigation.goBack()} onBookmark={bookmark} onShare={() => shareService.share(fact.data?.text ?? '')} />
+src\screens\facts\FactDetailScreen.tsx:34:            {fact.data.quizId ? <ClayButton label="Practice this topic" compact onPress={() => navigation.navigate('TestInstructions', {testId: fact.data!.quizId!})} /> : null}
+src\screens\facts\FactsListScreen.tsx:73:      accessibilityLabel={fact.bookmarked ? 'Fact is saved' : 'Save fact'}
+src\screens\facts\FactsListScreen.tsx:135:          <ClayButton label="Read More" compact onPress={onOpen} />
+src\screens\facts\FactsListScreen.tsx:137:            <ClayButton label="Take a Quiz" tone="ghost" compact onPress={onQuiz} />
+src\screens\facts\FactsListScreen.tsx:141:            accessibilityLabel={fact.reacted ? 'Unlike fact' : 'Like fact'}
+src\screens\facts\FactsListScreen.tsx:183:          accessibilityLabel={
+src\screens\facts\FactsListScreen.tsx:204:          accessibilityLabel="Share fact"
+src\screens\facts\FactsListScreen.tsx:244:        title={title}
+src\screens\facts\FactsListScreen.tsx:245:        subtitle={subtitle}
+src\screens\facts\FactsListScreen.tsx:250:            accessibilityLabel="Open saved facts"
+src\screens\facts\FactsListScreen.tsx:273:            title="No facts yet"
+src\screens\facts\FactsListScreen.tsx:318:              accessibilityLabel="Refresh facts"
+src\screens\facts\FactsListScreen.tsx:347:              label={facts.isFetchingNextPage ? 'Loading…' : 'Load More Facts'}
+src\screens\catalog\CatalogScreen.tsx:76:            <SearchInput placeholder={cfg.search} value={search} onChangeText={setSearch} onClear={() => setSearch('')} />
+src\screens\catalog\CatalogScreen.tsx:78:              <FilterChip label={cfg.all} selected={pricing === 'all'} onPress={() => setPricing('all')} />
+src\screens\catalog\CatalogScreen.tsx:79:              <FilterChip label="Free" tone="free" selected={pricing === 'free'} onPress={() => setPricing('free')} />
+src\screens\catalog\CatalogScreen.tsx:80:              <FilterChip label="Paid" tone="paid" selected={pricing === 'paid'} onPress={() => setPricing('paid')} />
+src\screens\support\LegalScreen.tsx:20:    <DetailHeader title={legal.data?.title ?? (slug === 'privacy' ? 'Privacy policy' : 'Terms of use')} onBack={() => navigation.goBack()} />
+src\screens\support\LegalScreen.tsx:22:      {publicUrl ? <ClayButton label="Read on our website" tone="ghost" onPress={() => void shareService.openUrl(publicUrl)} /> : null}
+src\screens\auth\VerifyContactScreen.tsx:2:import {Pressable, ScrollView, TextInput, View} from 'react-native';
+src\screens\auth\VerifyContactScreen.tsx:44:  const inputRef = React.useRef<React.ElementRef<typeof TextInput>>(null);
+src\screens\auth\VerifyContactScreen.tsx:83:              accessibilityLabel="Go back"
+src\screens\auth\VerifyContactScreen.tsx:149:              <TextInput
+src\screens\auth\VerifyContactScreen.tsx:156:                accessibilityLabel="6-digit verification code"
+src\screens\auth\VerifyContactScreen.tsx:224:            accessibilityLabel="Go back and request another code"
+src\screens\settings\SettingsScreen.tsx:98:    Alert.alert(t('logoutConfirm'), t('logoutBody'), [
+src\screens\settings\SettingsScreen.tsx:103:  const explainStreakFreeze = () => Alert.alert(t('streakFreeze'), t('streakFreezeBody'));
+src\screens\settings\SettingsScreen.tsx:108:      Alert.alert(t('reminderPermissionTitle'), t('reminderPermissionBody'), [
+src\screens\settings\SettingsScreen.tsx:124:    Alert.alert(
+src\screens\settings\SettingsScreen.tsx:133:    Alert.alert(t('language'), t('languageNote'));
+src\screens\settings\SettingsScreen.tsx:167:        title={t('title')}
+src\screens\settings\SettingsScreen.tsx:168:        subtitle={t('subtitle')}
+src\screens\settings\SettingsScreen.tsx:177:            accessibilityLabel={t('search')}
+src\screens\settings\SettingsScreen.tsx:186:              placeholder={t('searchPlaceholder')}
+src\screens\settings\SettingsScreen.tsx:213:                  title={t('editProfile')}
+src\screens\settings\SettingsScreen.tsx:214:                  subtitle={editSubtitle}
+src\screens\settings\SettingsScreen.tsx:222:                  title={t('manageSubscription')}
+src\screens\settings\SettingsScreen.tsx:223:                  subtitle={t('freePlan')}
+src\screens\settings\SettingsScreen.tsx:231:                  title={t('paymentHistory')}
+src\screens\settings\SettingsScreen.tsx:232:                  subtitle={paymentSubtitle}
+src\screens\settings\SettingsScreen.tsx:248:                  title={t('wifiOnly')}
+src\screens\settings\SettingsScreen.tsx:249:                  subtitle={t('wifiOnlyHint')}
+src\screens\settings\SettingsScreen.tsx:254:                      accessibilityLabel={t('wifiOnly')}
+src\screens\settings\SettingsScreen.tsx:263:                  title={t('videoQuality')}
+src\screens\settings\SettingsScreen.tsx:264:                  subtitle={qualitySubtitle}
+src\screens\settings\SettingsScreen.tsx:272:                  title={t('reminder')}
+src\screens\settings\SettingsScreen.tsx:273:                  subtitle={reminderSubtitle}
+src\screens\settings\SettingsScreen.tsx:279:                      accessibilityLabel={t('reminder')}
+src\screens\settings\SettingsScreen.tsx:288:                  title={t('learningFocus')}
+src\screens\settings\SettingsScreen.tsx:289:                  subtitle={t('learningFocusHint')}
+src\screens\settings\SettingsScreen.tsx:298:                  title={t('streakFreeze')}
+src\screens\settings\SettingsScreen.tsx:299:                  subtitle={t('streakFreezeHint')}
+src\screens\settings\SettingsScreen.tsx:302:                    <ClayToggle value={false} disabled accessibilityLabel={t('streakFreeze')} />
+src\screens\settings\SettingsScreen.tsx:318:                  title={t('language')}
+src\screens\settings\SettingsScreen.tsx:319:                  subtitle={t('languageHint')}
+src\screens\settings\SettingsScreen.tsx:328:                  title={t('darkMode')}
+src\screens\settings\SettingsScreen.tsx:329:                  subtitle={prefs.darkMode ? t('darkModeOn') : t('darkModeFollow')}
+src\screens\settings\SettingsScreen.tsx:334:                      accessibilityLabel={t('darkMode')}
+src\screens\settings\SettingsScreen.tsx:343:                  title={t('notifications')}
+src\screens\settings\SettingsScreen.tsx:344:                  subtitle={t('notificationsHint')}
+src\screens\settings\SettingsScreen.tsx:352:                  title={t('help')}
+src\screens\settings\SettingsScreen.tsx:353:                  subtitle={t('helpHint')}
+src\screens\settings\SettingsScreen.tsx:361:                  title={t('about')}
+src\screens\settings\SettingsScreen.tsx:362:                  subtitle={t('aboutHint')}
+src\screens\settings\SettingsScreen.tsx:370:                  title={t('privacy')}
+src\screens\settings\SettingsScreen.tsx:371:                  subtitle={t('privacyHint')}
+src\screens\settings\SettingsScreen.tsx:384:              title={t('logout')}
+src\screens\settings\SettingsScreen.tsx:385:              subtitle={t('logoutHint')}
+src\screens\settings\SettingsScreen.tsx:394:              title={t('login')}
+src\screens\settings\SettingsScreen.tsx:395:              subtitle={t('loginHint')}
+src\screens\settings\SettingsScreen.tsx:424:              title={t('demoPayment')}
+src\screens\settings\SettingsScreen.tsx:425:              subtitle={MOCK_PAYMENT_SCENARIOS.find(item => item.id === paymentScenario)?.label}
+src\screens\settings\SettingsScreen.tsx:427:                Alert.alert('Demo payment outcome', 'Applies to the next mock checkout only.', [
+src\screens\settings\SettingsScreen.tsx:458:        title={t('pickQuality')}
+src\screens\settings\SettingsScreen.tsx:463:            label={videoQualitySubtitle(option)}
+src\screens\settings\SettingsScreen.tsx:475:        title={t('pickLanguage')}
+src\screens\settings\SettingsScreen.tsx:481:            label={`${option.native} · ${option.label}`}
+src\screens\settings\SettingsScreen.tsx:490:        title={t('pickTime')}
+src\screens\settings\SettingsScreen.tsx:496:            label={formatReminderClock(hour, 0)}
+src\screens\settings\SettingsScreen.tsx:509:        title={t('pickLearningFocus')}
+src\screens\settings\SettingsScreen.tsx:515:            label={option.label}
+src\screens\search\SearchScreen.tsx:124:      accessibilityLabel={`Search for ${label}`}
+src\screens\search\SearchScreen.tsx:205:      Alert.alert(
+src\screens\search\SearchScreen.tsx:215:      Alert.alert(
+src\screens\search\SearchScreen.tsx:265:          accessibilityLabel="Back"
+src\screens\search\SearchScreen.tsx:270:            placeholder="Search REDI"
+src\screens\search\SearchScreen.tsx:286:            accessibilityLabel="Voice search"
+src\screens\search\SearchScreen.tsx:313:                  label={recent.length ? 'Recent' : 'Popular'}
+src\screens\search\SearchScreen.tsx:320:                      label={item}
+src\screens\search\SearchScreen.tsx:329:                    accessibilityLabel="Clear recent searches"
+src\screens\search\SearchScreen.tsx:392:                        label={option.label}
+src\screens\search\SearchScreen.tsx:425:              title="No matches found"
+src\screens\lessons\LessonPlayerScreen.tsx:67:          <IconButton icon="back" onPress={() => navigation.goBack()} accessibilityLabel="Back" />
+src\screens\lessons\LessonPlayerScreen.tsx:89:                <ClayButton label="Open resource" compact disabled={resource.busy} onPress={() => resource.open({resourceId: res.id, title: res.title, kind: 'notes', mimeType: res.mimeType})} />
+src\screens\lessons\LessonPlayerScreen.tsx:90:                {res.mimeType === 'application/pdf' ? <ClayButton label={resource.busy ? 'Working…' : 'Save PDF'} compact tone="ghost" disabled={resource.busy} onPress={() => resource.open({resourceId: res.id, title: res.title, kind: 'notes', mimeType: res.mimeType}, true)} /> : null}
+src\screens\lessons\LessonPlayerScreen.tsx:99:            <ClayButton disabled={complete.isPending || complete.isSuccess || lesson.data.state === 'locked' || !isAuthenticated()} label={complete.isSuccess ? 'Completed' : complete.isPending ? 'Saving…' : 'Mark as complete'} onPress={() => complete.mutate()} />
+src\screens\support\AboutScreen.tsx:22:      <DetailHeader title={`About ${brand.name}`} onBack={() => navigation.goBack()} />
+src\screens\support\AboutScreen.tsx:41:        <ClayButton label="Help & Support" tone="ghost" onPress={() => navigation.navigate('HelpSupport')} />
+src\screens\support\AboutScreen.tsx:42:        <ClayButton label="Privacy Policy" tone="ghost" onPress={() => navigation.navigate('Legal', {slug: 'privacy'})} />
+src\screens\support\AboutScreen.tsx:43:        <ClayButton label="Terms of Use" tone="ghost" onPress={() => navigation.navigate('Legal', {slug: 'terms'})} />
+src\screens\support\HelpSupportScreen.tsx:22:      <DetailHeader title="Help & Support" onBack={() => navigation.goBack()} />
+src\screens\support\HelpSupportScreen.tsx:32:        {support.data?.email && !support.data.email.endsWith('.invalid') ? <ClayButton label="Email support" onPress={() => { void Linking.openURL(`mailto:${support.data!.email}`).catch(() => Alert.alert('Email support', support.data!.email)); }} /> : null}
+src\screens\support\HelpSupportScreen.tsx:33:        {support.data?.phone ? <ClayButton label="Call support" tone="ghost" onPress={() => { void Linking.openURL(`tel:${support.data!.phone}`).catch(() => Alert.alert('Call support', support.data!.phone)); }} /> : null}
+src\screens\support\HelpSupportScreen.tsx:34:        <ClayButton label="Send feedback" tone="ghost" onPress={() => navigation.navigate('Feedback')} />
+src\screens\auth\ResetPasswordScreen.tsx:2:import {Pressable, ScrollView, TextInput, View} from 'react-native';
+src\screens\auth\ResetPasswordScreen.tsx:37:        <TextInput
+src\screens\auth\ResetPasswordScreen.tsx:41:          placeholder="••••••••"
+src\screens\auth\ResetPasswordScreen.tsx:43:          accessibilityLabel={label}
+src\screens\auth\ResetPasswordScreen.tsx:50:          style={styles.resetTextInput}
+src\screens\auth\ResetPasswordScreen.tsx:56:          accessibilityLabel={hidden ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}>
+src\screens\auth\ResetPasswordScreen.tsx:101:              accessibilityLabel="Go back"
+src\screens\auth\ResetPasswordScreen.tsx:147:              label="NEW PASSWORD"
+src\screens\auth\ResetPasswordScreen.tsx:164:              label="CONFIRM NEW PASSWORD"
+src\screens\settings\NotificationSettingsScreen.tsx:26:      <DetailHeader title={t('notifications')} subtitle={t('notificationsHint')} onBack={() => navigation.goBack()} />
+src\screens\settings\NotificationSettingsScreen.tsx:34:            title={t('notifClasses')}
+src\screens\settings\NotificationSettingsScreen.tsx:35:            subtitle={t('notifClassesHint')}
+src\screens\settings\NotificationSettingsScreen.tsx:43:            title={t('notifTests')}
+src\screens\settings\NotificationSettingsScreen.tsx:44:            subtitle={t('notifTestsHint')}
+src\screens\settings\NotificationSettingsScreen.tsx:52:            title={t('notifOffers')}
+src\screens\settings\NotificationSettingsScreen.tsx:53:            subtitle={t('notifOffersHint')}
+src\screens\settings\NotificationSettingsScreen.tsx:117:      <ClayToggle value={value} onValueChange={onValueChange} accessibilityLabel={title} />
+src\screens\support\FeedbackScreen.tsx:33:      Alert.alert('Add a little more detail', 'Please enter at least 10 characters so the team can understand your feedback.');
+src\screens\support\FeedbackScreen.tsx:41:      Alert.alert('Email support', `Send your ${category.toLowerCase()} feedback to ${validEmail}.`);
+src\screens\support\FeedbackScreen.tsx:47:      <DetailHeader title="Send Feedback" subtitle="Tell us what would make REDI better" onBack={() => navigation.goBack()} />
+src\screens\support\FeedbackScreen.tsx:55:                <FilterChip key={item} label={item} selected={category === item} onPress={() => setCategory(item)} />
+src\screens\support\FeedbackScreen.tsx:59:              label="Feedback"
+src\screens\support\FeedbackScreen.tsx:60:              placeholder="What happened, or what would you like to see?"
+src\screens\support\FeedbackScreen.tsx:72:                <ClayButton label="Open email app" icon="send" onPress={() => void send()} />
+src\screens\learning\MyLearningScreen.tsx:87:    onError: () => Alert.alert('Could not remove item', 'Please try again.'),
+src\screens\learning\MyLearningScreen.tsx:134:    Alert.alert('Remove saved item?', item.title, [
+src\screens\learning\MyLearningScreen.tsx:144:          title="My Learning"
+src\screens\learning\MyLearningScreen.tsx:145:          subtitle="Continue where you left off"
+src\screens\learning\MyLearningScreen.tsx:146:          right={<IconButton icon="download" onPress={() => navigation.navigate('Downloads')} accessibilityLabel="Downloads" />}
+src\screens\learning\MyLearningScreen.tsx:156:            <ClayButton label="Sign in to continue" onPress={() => useSessionStore.getState().showLogin()} />
+src\screens\learning\MyLearningScreen.tsx:170:        title="My Learning"
+src\screens\learning\MyLearningScreen.tsx:171:        subtitle="Continue where you left off"
+src\screens\learning\MyLearningScreen.tsx:172:        right={<IconButton icon="download" onPress={() => navigation.navigate('Downloads')} accessibilityLabel="Downloads" />}
+src\screens\learning\MyLearningScreen.tsx:219:            <SectionHeader title="Continue Learning" action="See all" onPress={() => navigation.navigate('EnrolledCourses')} />
+src\screens\learning\MyLearningScreen.tsx:223:              <EmptyState title="No active courses" body="Enrol in a course and your progress will appear here." />
+src\screens\learning\MyLearningScreen.tsx:228:              return <CourseProgressCard key={item.id} enrollment={item} title={course?.title ?? 'Your course'} letter={course?.letter} tone={originalIndex % 2 ? 'mint' : 'blue'} onPress={() => openEnrollment(item)} />;
+src\screens\learning\MyLearningScreen.tsx:245:          <SectionHeader title={savedTitle} action={filter === 'All' ? 'See all' : undefined} onPress={() => setFilter('All')} />
+src\screens\learning\MyLearningScreen.tsx:249:            <EmptyState title="Nothing saved yet" body="Bookmark courses, stories and facts to find them here." />
+src\screens\learning\MyLearningScreen.tsx:322:      <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${item.title} from saved items`} hitSlop={10} onPress={event => { event.stopPropagation(); onRemove(); }} style={styles.bookmarkButton}>
+src\screens\payments\SubscriptionScreen.tsx:15:      <DetailHeader title="Manage Subscription" subtitle="Current plan" onBack={() => navigation.goBack()} />
+src\screens\auth\ForgotPasswordScreen.tsx:2:import {Pressable, ScrollView, TextInput, View} from 'react-native';
+src\screens\auth\ForgotPasswordScreen.tsx:62:              accessibilityLabel="Back to login"
+src\screens\auth\ForgotPasswordScreen.tsx:110:              <TextInput
+src\screens\auth\ForgotPasswordScreen.tsx:114:                placeholder={isPhone ? '10-digit mobile number' : 'name@example.com'}
+src\screens\auth\ForgotPasswordScreen.tsx:116:                accessibilityLabel="Email address or mobile number"
+src\screens\auth\ForgotPasswordScreen.tsx:123:                style={styles.recoveryTextInput}
+src\screens\auth\ForgotPasswordScreen.tsx:167:            accessibilityLabel="Return to sign in"
+src\screens\profile\ProfileScreen.tsx:108:        title="Profile"
+src\screens\profile\ProfileScreen.tsx:109:        subtitle="Your learning account"
+src\screens\profile\ProfileScreen.tsx:110:        right={<IconButton icon="gear" onPress={() => navigation.navigate('Settings')} accessibilityLabel="Settings" />}
+src\screens\profile\ProfileScreen.tsx:131:              <Stat value={profile.stats.courses} label="Courses" variant="blue" />
+src\screens\profile\ProfileScreen.tsx:132:              <Stat value={profile.stats.tests} label="Tests" variant="green" />
+src\screens\profile\ProfileScreen.tsx:133:              <Stat value={profile.stats.streakDays} label="Day Streak" variant="orange" />
+src\screens\profile\ProfileScreen.tsx:142:                    label={item.label}
+src\screens\profile\ProfileScreen.tsx:186:      <ClayButton label="Login to continue" onPress={onLogin} />
+src\screens\profile\ProfileScreen.tsx:212:        accessibilityLabel="Edit profile"
+src\screens\profile\ProfileScreen.tsx:245:      <ClayButton label="Edit Profile" tone="ghost" compact icon="edit" onPress={onEdit} />
+src\screens\profile\ProfileScreen.tsx:308:      accessibilityLabel="View admit card"
+src\screens\payments\PaymentSuccessScreen.tsx:69:        <ClayButton label="Check payment status" onPress={() => navigation.replace('PaymentPending', {orderId})} />
+src\screens\payments\PaymentSuccessScreen.tsx:115:            <Pressable accessibilityRole="button" accessibilityLabel="Share receipt" onPress={shareReceipt} hitSlop={8}>
+src\screens\payments\PaymentSuccessScreen.tsx:122:            <ReceiptRow label="Item" value={data.title} />
+src\screens\payments\PaymentSuccessScreen.tsx:124:              label="Amount"
+src\screens\payments\PaymentSuccessScreen.tsx:137:            <ReceiptRow label="Method" value={methodLine(data)} />
+src\screens\payments\PaymentSuccessScreen.tsx:138:            <ReceiptRow label="Date & Time" value={formatPaidAt(data.paidAt)} />
+src\screens\payments\PaymentSuccessScreen.tsx:139:            <ReceiptRow label="Txn ID" value={data.id} mono onPress={shareReceipt} />
+src\screens\payments\PaymentSuccessScreen.tsx:140:            {data.receiptId ? <ReceiptRow label="Ref No." value={data.receiptId} mono onPress={shareReceipt} /> : null}
+src\screens\payments\PaymentSuccessScreen.tsx:154:            accessibilityLabel={cta.label}
+src\screens\payments\PaymentSuccessScreen.tsx:165:            accessibilityLabel="Go to My Learning"
+src\screens\payments\PaymentSuccessScreen.tsx:174:        <Pressable accessibilityRole="button" accessibilityLabel="Browse live classes" onPress={goLive}>
+src\screens\splash\SplashScreen.tsx:170:      accessibilityLabel={`${brand.institute}. ${brand.tagline}`}
+src\screens\downloads\DownloadsScreen.tsx:29:      <DetailHeader title="Downloads" onBack={() => navigation.goBack()} />
+src\screens\downloads\DownloadsScreen.tsx:38:            <FilterChip key={item} label={item} selected={chip === item} onPress={() => setChip(item)} />
+src\screens\downloads\DownloadsScreen.tsx:52:            title={chip === 'All' ? 'No downloads yet' : `No ${chip.toLowerCase()} downloaded`}
+src\screens\semesters\SemesterWaitScreen.tsx:20:        title="Semester Verification"
+src\screens\semesters\SemesterWaitScreen.tsx:21:        subtitle={subtitle || 'Awaiting unlock'}
+src\screens\semesters\SemesterWaitScreen.tsx:104:                    label={wait.nextUnlocked ? 'READY' : 'WAITING'}
+src\screens\semesters\SemesterWaitScreen.tsx:127:              label={wait.review.busy ? 'Submitting…' : 'Submit for review'}
+src\screens\semesters\SemesterWaitScreen.tsx:187:                label={wait.liveClass && ['live', 'starting', 'reconnecting'].includes(wait.liveClass.status) ? 'Join Live Class' : 'View Live Schedule'}
+src\screens\semesters\SemesterWaitScreen.tsx:264:          label={item.chip}
+src\screens\profile\EditProfileScreen.tsx:8:  TextInput,
+src\screens\profile\EditProfileScreen.tsx:10:  type TextInputProps,
+src\screens\profile\EditProfileScreen.tsx:129:      Alert.alert('Discard changes?', 'You have unsaved profile changes.', [
+src\screens\profile\EditProfileScreen.tsx:183:              Alert.alert('Photo unavailable', (err as Error).message || 'Could not update photo.');
+src\screens\profile\EditProfileScreen.tsx:199:    Alert.alert('Profile photo', 'Pick a clear face photo under 5 MB.', options);
+src\screens\profile\EditProfileScreen.tsx:217:        title="Edit Profile"
+src\screens\profile\EditProfileScreen.tsx:218:        subtitle="Update your details"
+src\screens\profile\EditProfileScreen.tsx:223:            accessibilityLabel="Save profile"
+src\screens\profile\EditProfileScreen.tsx:242:            accessibilityLabel="Change profile photo"
+src\screens\profile\EditProfileScreen.tsx:271:          label="Full Name"
+src\screens\profile\EditProfileScreen.tsx:280:          label="Email"
+src\screens\profile\EditProfileScreen.tsx:290:          label="Phone Number"
+src\screens\profile\EditProfileScreen.tsx:302:          label="Currently Learning"
+src\screens\profile\EditProfileScreen.tsx:309:          label="City / State"
+src\screens\profile\EditProfileScreen.tsx:326:            accessibilityLabel={editingInterests ? 'Done editing interests' : 'Edit interests'}>
+src\screens\profile\EditProfileScreen.tsx:337:              label={option.label}
+src\screens\profile\EditProfileScreen.tsx:438:}: TextInputProps & {
+src\screens\profile\EditProfileScreen.tsx:454:      <TextInput
+src\screens\profile\EditProfileScreen.tsx:455:        accessibilityLabel={label}
+src\screens\profile\EditProfileScreen.tsx:471:        <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+src\screens\interview\InterviewQuestionScreen.tsx:63:        title="Answer practice"
+src\screens\interview\InterviewQuestionScreen.tsx:64:        subtitle="Think clearly · speak naturally"
+src\screens\interview\InterviewQuestionScreen.tsx:125:                    label={isRunning ? 'Pause' : secondsLeft === 0 ? 'Try again' : 'Start timer'}
+src\screens\interview\InterviewQuestionScreen.tsx:133:                    accessibilityLabel="Reset timer"
+src\screens\interview\InterviewQuestionScreen.tsx:143:              <CoachingCue number="01" label="Lead with the answer" />
+src\screens\interview\InterviewQuestionScreen.tsx:144:              <CoachingCue number="02" label="Add one proof point" />
+src\screens\interview\InterviewQuestionScreen.tsx:145:              <CoachingCue number="03" label="Finish with relevance" />
+src\screens\interview\InterviewQuestionScreen.tsx:157:              label={answerVisible ? 'Hide model answer' : 'Reveal model answer'}
+src\screens\payments\PaymentPendingScreen.tsx:49:      <DetailHeader title="Payment status" onBack={() => navigation.goBack()} />
+src\screens\payments\PaymentPendingScreen.tsx:75:            label="Refresh status"
+src\screens\payments\PaymentPendingScreen.tsx:83:            label="Try checkout again"
+src\screens\payments\PaymentPendingScreen.tsx:92:          label="View payment history"
+src\screens\semesters\SemesterOutlineScreen.tsx:51:    Alert.alert(
+src\screens\semesters\SemesterOutlineScreen.tsx:59:        title={courseTitle}
+src\screens\semesters\SemesterOutlineScreen.tsx:60:        subtitle={`My Course${outline.purchasedLabel ? ` · purchased ${outline.purchasedLabel}` : ''}`}
+src\screens\semesters\SemesterOutlineScreen.tsx:90:                {outline.semesters.length ? <Badge label={`${outline.semesters.length} SEMESTERS`} palette={gradients.freeBadge} /> : null}
+src\screens\semesters\SemesterOutlineScreen.tsx:91:                <Badge label="CERTIFICATION COURSE" palette={gradients.paidBadge} />
+src\screens\semesters\SemesterOutlineScreen.tsx:142:            <Pressable onPress={explainUnlockRules} hitSlop={6} accessibilityRole="button" accessibilityLabel="How semesters unlock">
+src\screens\semesters\SemesterOutlineScreen.tsx:160:                          Alert.alert(
+src\screens\semesters\SemesterOutlineScreen.tsx:170:            <EmptyState title="No semesters yet" body="This certification track has not published its semester plan yet." />
+src\screens\semesters\SemesterOutlineScreen.tsx:198:          <ClayButton label="View certificate" icon="award" tone="success" onPress={outline.openCertificate} />
+src\screens\semesters\SemesterOutlineScreen.tsx:201:            label={outline.current ? `Continue Semester ${outline.current.index}` : 'Continue semester'}
+src\screens\semesters\SemesterOutlineScreen.tsx:214:    <View style={styles.purchasedChip} accessibilityLabel="Purchased course">
+src\screens\semesters\SemesterOutlineScreen.tsx:331:      accessibilityLabel={`Semester ${item.index}: ${item.title}. ${view.chip}`}
+src\screens\semesters\SemesterOutlineScreen.tsx:340:          <StatChip label={view.chip} tone={view.tone} />
+src\screens\profile\DeleteAccountScreen.tsx:22:    Alert.alert(result.status === 'deleted' ? 'Account deleted' : 'Deletion requested', result.message ?? 'Your request was accepted. See the privacy policy for data retention details.');
+src\screens\profile\DeleteAccountScreen.tsx:25:    <DetailHeader title="Delete account" onBack={() => navigation.goBack()} />
+src\screens\profile\DeleteAccountScreen.tsx:33:      <ClayButton label="Read privacy policy" tone="ghost" onPress={() => navigation.navigate('Legal', {slug: 'privacy'})} />
+src\screens\profile\DeleteAccountScreen.tsx:34:      {appConfig.accountDeletionUrl ? <ClayButton label="Request deletion on our website" tone="ghost" onPress={() => void shareService.openUrl(appConfig.accountDeletionUrl!)} /> : null}
+src\screens\profile\DeleteAccountScreen.tsx:36:      <ClayButton label={action.busy ? 'Sending request…' : 'Request account deletion'} disabled={action.busy}
+src\screens\profile\DeleteAccountScreen.tsx:37:        onPress={() => Alert.alert('Delete your REDI account?', 'This will request deletion of your account and associated data. Once completed, deletion cannot be undone.', [
+src\screens\interview\InterviewQuestionListScreen.tsx:27:      <DetailHeader title={category?.title ?? 'Interview Questions'} onBack={() => navigation.goBack()} />
+src\screens\interview\InterviewQuestionListScreen.tsx:48:          <EmptyState title="No questions yet" body="This interview topic does not have published questions yet." />
+src\screens\payments\PaymentHistoryScreen.tsx:34:      <DetailHeader title="Payment History" onBack={() => navigation.goBack()} />
+src\screens\payments\PaymentHistoryScreen.tsx:36:        {appConfig.capabilities.payments && !isMockData ? <ClayButton label={restore.busy ? 'Checking purchases…' : 'Restore Google Play purchases'} disabled={restore.busy} onPress={() => void restore.run()} /> : null}
+src\screens\payments\PaymentHistoryScreen.tsx:38:        {pending.data?.orderId ? <ClayButton label="Check interrupted purchase" tone="ghost" onPress={() => navigation.navigate('OrderDetail', {orderId: pending.data!.orderId!})} /> : null}
+src\screens\semesters\SemesterContentScreen.tsx:22:      <DetailHeader title={data.data?.title ?? 'Semester'} onBack={() => navigation.goBack()} />
+src\screens\semesters\ProjectDetailScreen.tsx:43:      <DetailHeader title="Project" onBack={() => navigation.goBack()} />
+src\screens\semesters\ProjectDetailScreen.tsx:50:        <FormField value={text} onChangeText={setText} label="Written submission" placeholder="Add your work here" multiline maxLength={20000} editable={!submitted && !submit.busy} />
+src\screens\semesters\ProjectDetailScreen.tsx:52:        <ClayButton label={submitted ? 'Submitted for review' : submit.busy ? 'Submitting…' : 'Submit project'} disabled={!project.data || submitted || submit.busy || !text.trim()} onPress={() => void submit.run()} />
+src\screens\assessments\DailyQuizExperience.tsx:76:        title="Daily Challenge"
+src\screens\assessments\DailyQuizExperience.tsx:77:        subtitle="A little progress, every day"
+src\screens\assessments\DailyQuizExperience.tsx:83:              accessibilityLabel={`Time remaining ${Math.floor(remaining / 60)} minutes ${remaining % 60} seconds`}>
+src\screens\assessments\DailyQuizExperience.tsx:172:                accessibilityLabel={`${LETTERS[optionIndex] ?? optionIndex + 1}. ${option.label}`}
+src\screens\assessments\DailyQuizExperience.tsx:264:            label={primaryLabel}
+src\screens\interview\InterviewPrepScreen.tsx:146:              label={warmupQuestions.length ? 'Start 5-min practice' : 'No questions yet'}
+src\screens\interview\InterviewPrepScreen.tsx:167:          <SnapshotItem icon="clock" value="5 min" label="quick session" />
+src\screens\interview\InterviewPrepScreen.tsx:169:          <SnapshotItem icon="bookopen" value={`${freeTopicCount}`} label="free topics" />
+src\screens\interview\InterviewPrepScreen.tsx:171:          <SnapshotItem icon="mic" value="Speak" label="practice aloud" />
+src\screens\interview\InterviewPrepScreen.tsx:184:            title="Surprise me"
+src\screens\interview\InterviewPrepScreen.tsx:192:            title="1-on-1 mock"
+src\screens\interview\InterviewPrepScreen.tsx:212:          placeholder="Search questions or topics"
+src\screens\interview\InterviewPrepScreen.tsx:224:            label="All topics"
+src\screens\interview\InterviewPrepScreen.tsx:234:              label={shortTopicNames[item.id] ?? item.title}
+src\screens\interview\InterviewPrepScreen.tsx:281:                title="No matching questions"
+src\screens\payments\PaymentFailureScreen.tsx:107:            <DetailRow label="Item" value={data.title} />
+src\screens\payments\PaymentFailureScreen.tsx:108:            <DetailRow label="Amount" value={amount} />
+src\screens\payments\PaymentFailureScreen.tsx:109:            <DetailRow label="Method" value={method} />
+src\screens\payments\PaymentFailureScreen.tsx:110:            <DetailRow label="Tried at" value={formatPaidAt(data.paidAt ?? new Date().toISOString())} />
+src\screens\payments\PaymentFailureScreen.tsx:111:            <DetailRow label="Order ID" value={data.id} mono />
+src\screens\payments\PaymentFailureScreen.tsx:112:            <DetailRow label="Reason" value={reason} />
+src\screens\payments\PaymentFailureScreen.tsx:144:            accessibilityLabel="Try payment again"
+src\screens\payments\PaymentFailureScreen.tsx:159:              accessibilityLabel="View payment history"
+src\screens\payments\PaymentFailureScreen.tsx:168:              accessibilityLabel="Get help"
+src\screens\payments\PaymentFailureScreen.tsx:178:        <Pressable accessibilityRole="button" accessibilityLabel="Contact support" onPress={help}>
+src\screens\payments\PaymentFailureScreen.tsx:199:        <ClayButton label="Back to Home" tone="ghost" onPress={() => navigation.replace('Main', {screen: 'HomeTab', params: {screen: 'Home'}})} />
+src\screens\assessments\QuizRunner.tsx:54:    Alert.alert('Leave this attempt?', 'Answers you have saved can be restored. The timer continues while you are away.', [
+src\screens\assessments\QuizRunner.tsx:131:  if (!question) return <Screen><DetailHeader title="Assessment" onBack={() => navigation.goBack()} /><ErrorState message="This attempt could not be restored." onRetry={() => void attempt.refetch()} /></Screen>;
+src\screens\assessments\QuizRunner.tsx:158:      <DetailHeader title={formal ? 'Test' : 'Daily Quiz'} onBack={() => navigation.goBack()} />
+src\screens\assessments\QuizRunner.tsx:160:        {remaining !== null ? <AppText accessibilityLabel={`Time remaining ${Math.floor(remaining / 60)} minutes ${remaining % 60} seconds`} face="mono" weight="700" size={16} color={remaining === 0 ? colors.error : colors.orange}>{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}</AppText> : null}
+src\screens\assessments\QuizRunner.tsx:184:          {index > 0 && formal && remaining !== 0 ? <ClayButton label="Previous question" tone="ghost" disabled={busy} onPress={() => { setIndex(i => i - 1); setSelected(undefined); }} /> : null}
+src\screens\assessments\QuizRunner.tsx:186:            label={busy ? 'Saving…' : remaining === 0 ? 'Submit saved answers' : !formal && question.revealAnswer && !feedback ? 'Check answer' : index + 1 === attempt.data?.questions.length ? 'Submit answers' : 'Next question'}
+src\screens\payments\OrderDetailScreen.tsx:27:      <DetailHeader title="Order" onBack={() => navigation.goBack()} />
+src\screens\payments\OrderDetailScreen.tsx:41:                <ReceiptLine label="Amount" value={inr(data.quote.totalMinor, data.quote.currency)} />
+src\screens\payments\OrderDetailScreen.tsx:42:                <ReceiptLine label="Payment method" value={data.method ? methodLine(data) : 'Not selected'} />
+src\screens\payments\OrderDetailScreen.tsx:43:                <ReceiptLine label="Date" value={data.paidAt ? formatPaidAt(data.paidAt) : 'Not completed'} />
+src\screens\payments\OrderDetailScreen.tsx:44:                <ReceiptLine label="Product" value={data.productId} mono />
+src\screens\payments\OrderDetailScreen.tsx:45:                <ReceiptLine label="Order ID" value={data.id} mono />
+src\screens\payments\OrderDetailScreen.tsx:46:                {data.receiptId ? <ReceiptLine label="Reference" value={data.receiptId} mono /> : null}
+src\screens\payments\OrderDetailScreen.tsx:50:              <ClayButton label={order.isFetching ? 'Checking…' : 'Recheck payment'} disabled={order.isFetching} onPress={() => void order.refetch()} />
+src\screens\payments\OrderDetailScreen.tsx:53:              <ClayButton label="Open My Learning" onPress={() => navigation.navigate('Main', {screen: 'LearningTab', params: {screen: 'MyLearning'}})} />
+src\screens\payments\OrderDetailScreen.tsx:56:              <ClayButton label="Try payment again" onPress={() => navigation.navigate('Checkout', {productId: data.productId})} />
+src\screens\home\HomeScreen.tsx:94:          title={item.title}
+src\screens\home\HomeScreen.tsx:129:    Alert.alert(resume.title, 'Choose where you want to continue.', [
+src\screens\home\HomeScreen.tsx:182:          placeholder="Search courses, news and facts"
+src\screens\home\HomeScreen.tsx:189:            accessibilityLabel="Browse free courses"
+src\screens\home\HomeScreen.tsx:210:            accessibilityLabel="Browse paid courses"
+src\screens\home\HomeScreen.tsx:247:              accessibilityLabel="Live classes carousel"
+src\screens\home\HomeScreen.tsx:303:                        label={liveActionLabel(item)}
+src\screens\home\HomeScreen.tsx:328:                        accessibilityLabel={`${liveActionLabel(item)}: ${
+src\screens\home\HomeScreen.tsx:354:                    accessibilityLabel={`Show ${item.title}`}
+src\screens\home\HomeScreen.tsx:405:                accessibilityLabel={`Resume ${resume.title}, ${resume.lessonLabel}`}
+src\screens\home\HomeScreen.tsx:456:                  accessibilityLabel={`Resume ${resume.title}`}
+src\screens\home\HomeScreen.tsx:466:                  accessibilityLabel="More learning options"
+src\screens\home\HomeScreen.tsx:487:              label="Browse free courses"
+src\screens\downloads\DownloadList.tsx:128:    Alert.alert('Sort downloads', 'Choose how saved resources are arranged.', [
+src\screens\downloads\DownloadList.tsx:137:    Alert.alert(
+src\screens\downloads\DownloadList.tsx:156:    Alert.alert(item.title, accessLabel(item), [
+src\screens\downloads\DownloadList.tsx:166:    Alert.alert(
+src\screens\downloads\DownloadList.tsx:189:        title="Downloads"
+src\screens\downloads\DownloadList.tsx:190:        subtitle="Learn without internet"
+src\screens\downloads\DownloadList.tsx:196:            accessibilityLabel="Sort downloads"
+src\screens\downloads\DownloadList.tsx:215:            title="Sign in to save resources"
+src\screens\downloads\DownloadList.tsx:233:                  label={item.label}
+src\screens\downloads\DownloadList.tsx:302:                title={
+src\screens\downloads\DownloadList.tsx:311:                label={
+src\screens\downloads\DownloadList.tsx:386:        accessibilityLabel="Download storage by category"
+src\screens\downloads\DownloadList.tsx:405:          label="Notes"
+src\screens\downloads\DownloadList.tsx:410:          label="PDFs"
+src\screens\downloads\DownloadList.tsx:458:        accessibilityLabel={`${item.available ? 'Open' : 'Renew'} ${
+src\screens\downloads\DownloadList.tsx:500:          accessibilityLabel={`Remove ${item.title}`}
+src\screens\downloads\DownloadList.tsx:525:          accessibilityLabel={`Renew ${item.title}`}
+src\screens\downloads\DownloadList.tsx:531:          accessibilityLabel={`Options for ${item.title}`}
+src\screens\payments\CheckoutScreen.tsx:52:        title="Checkout"
+src\screens\payments\CheckoutScreen.tsx:53:        subtitle={data?.title}
+src\screens\payments\CheckoutScreen.tsx:122:              <Pressable onPress={removeCoupon} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove coupon">
+src\screens\payments\CheckoutScreen.tsx:137:                    label="Coupon code"
+src\screens\payments\CheckoutScreen.tsx:138:                    placeholder="REDI50"
+src\screens\payments\CheckoutScreen.tsx:145:                <ClayButton label="Apply" compact disabled={busy || !coupon.trim()} onPress={submitCoupon} />
+src\screens\payments\CheckoutScreen.tsx:175:                      accessibilityLabel={item.label}
+src\screens\payments\CheckoutScreen.tsx:224:          accessibilityLabel="Read payment and refund policy">
+src\screens\payments\CheckoutScreen.tsx:246:          accessibilityLabel={pay.isPending ? 'Processing payment' : `Pay ${payableLabel || ''} securely`}
+src\screens\payments\CheckoutScreen.tsx:264:    <View style={styles.secure} accessibilityLabel="Secure checkout">
+src\screens\assessments\TestResultScreen.tsx:63:        <DetailHeader title="Test Result" onBack={() => navigation.goBack()} />
+src\screens\assessments\TestResultScreen.tsx:72:        <DetailHeader title="Test Result" onBack={() => navigation.goBack()} />
+src\screens\assessments\TestResultScreen.tsx:81:        <DetailHeader title="Test Result" onBack={() => navigation.goBack()} />
+src\screens\assessments\TestResultScreen.tsx:82:        <EmptyState title="Result unavailable" body="This attempt has no scored result yet." />
+src\screens\assessments\TestResultScreen.tsx:89:    Alert.alert(
+src\screens\assessments\TestResultScreen.tsx:100:      Alert.alert('Solutions locked', 'Solutions unlock after the test window closes. Check back once they are released.');
+src\screens\assessments\TestResultScreen.tsx:109:      <DetailHeader title="Test Result" subtitle={title} onBack={() => navigation.goBack()} onShare={shareScore} />
+src\screens\assessments\TestResultScreen.tsx:114:            {rankLabel ? <TypeChip label={rankLabel} tone="fact" /> : null}
+src\screens\assessments\TestResultScreen.tsx:115:            {accuracy != null ? <TypeChip label={`Accuracy ${Math.round(accuracy)}%`} tone="course" /> : null}
+src\screens\assessments\TestResultScreen.tsx:116:            {timeLabel ? <TypeChip label={`Time ${timeLabel}`} tone="news" /> : null}
+src\screens\assessments\TestResultScreen.tsx:129:                accessibilityLabel={showDetails ? 'Hide section details' : 'Show section details'}
+src\screens\assessments\TestResultScreen.tsx:174:            accessibilityLabel={`Show all ${counts.all} questions`}
+src\screens\assessments\TestResultScreen.tsx:194:                    Alert.alert('Solutions locked', 'Solutions unlock after the test window closes.');
+src\screens\assessments\TestResultScreen.tsx:214:            accessibilityLabel={solutionsOpen ? 'Hide solutions' : 'View solutions'}
+src\screens\assessments\TestResultScreen.tsx:223:            accessibilityLabel="Retry test"
+src\screens\assessments\TestResultScreen.tsx:246:      accessibilityLabel={`${Math.round(percent)} percent score, ${score} out of ${maxScore}`}>
+src\screens\assessments\TestResultScreen.tsx:312:      accessibilityLabel={`${section.name} ${section.score} of ${section.max}`}
+src\screens\assessments\TestResultScreen.tsx:366:      accessibilityLabel={`Question ${String(index).padStart(2, '0')}, ${chip.label}`}
+src\screens\assessments\TestResultScreen.tsx:385:        <TypeChip label={chip.label} tone={chip.tone} />
+src\screens\auth\LoginScreen.tsx:2:import {Pressable, ScrollView, TextInput, View} from 'react-native';
+src\screens\auth\LoginScreen.tsx:69:              <TextInput
+src\screens\auth\LoginScreen.tsx:72:                placeholder="Phone number or email"
+src\screens\auth\LoginScreen.tsx:74:                accessibilityLabel="Phone Number or Email"
+src\screens\auth\LoginScreen.tsx:92:              <TextInput
+src\screens\auth\LoginScreen.tsx:95:                placeholder="••••••••"
+src\screens\auth\LoginScreen.tsx:97:                accessibilityLabel="Password"
+src\screens\auth\LoginScreen.tsx:109:                accessibilityLabel={passwordHidden ? 'Show password' : 'Hide password'}>
+src\screens\auth\LoginScreen.tsx:161:            accessibilityLabel="Login with Dummy Account"
+src\screens\documents\AdmitCardScreen.tsx:185:    Alert.alert(
+src\screens\documents\AdmitCardScreen.tsx:196:      Alert.alert('Exam schedule', examDate ? `Exam date: ${examDate}` : 'Exam schedule is not available on this card.');
+src\screens\documents\AdmitCardScreen.tsx:216:    Alert.alert('Add to calendar', 'Open Google Calendar with this exam pre-filled?', [
+src\screens\documents\AdmitCardScreen.tsx:222:            Alert.alert('Could not open calendar', 'Copy the exam details from Share instead.');
+src\screens\documents\AdmitCardScreen.tsx:240:        <DetailHeader title="Admit Card" onBack={() => navigation.goBack()} />
+src\screens\documents\AdmitCardScreen.tsx:249:        title="Admit Card"
+src\screens\documents\AdmitCardScreen.tsx:250:        subtitle={headerSubtitle}
+src\screens\documents\AdmitCardScreen.tsx:258:          accessibilityLabel="Open admit card verification"
+src\screens\documents\AdmitCardScreen.tsx:318:              accessibilityLabel="Scan QR to verify admit card"
+src\screens\documents\AdmitCardScreen.tsx:377:            label={resource.busy ? 'Working…' : 'Download PDF'}
+src\screens\documents\AdmitCardScreen.tsx:385:            label="Share"
+src\screens\documents\AdmitCardScreen.tsx:396:          label={resource.busy ? 'Working…' : 'Open official PDF'}
+src\screens\auth\RegisterScreen.tsx:2:import {Pressable, ScrollView, TextInput, View, type TextInputProps} from 'react-native';
+src\screens\auth\RegisterScreen.tsx:19:type SignupFieldProps = TextInputProps & {
+src\screens\auth\RegisterScreen.tsx:38:        <TextInput
+src\screens\auth\RegisterScreen.tsx:40:          accessibilityLabel={label}
+src\screens\auth\RegisterScreen.tsx:43:          style={styles.signupTextInput}
+src\screens\auth\RegisterScreen.tsx:50:            accessibilityLabel={hidden ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}>
+src\screens\auth\RegisterScreen.tsx:136:            label="Full name"
+src\screens\auth\RegisterScreen.tsx:143:            placeholder="e.g. Deepak Kumar"
+src\screens\auth\RegisterScreen.tsx:153:            label="Email address (optional)"
+src\screens\auth\RegisterScreen.tsx:160:            placeholder="name@example.com"
+src\screens\auth\RegisterScreen.tsx:171:            label="Mobile number"
+src\screens\auth\RegisterScreen.tsx:178:            placeholder="10-digit mobile number"
+src\screens\auth\RegisterScreen.tsx:187:            label="Create password"
+src\screens\auth\RegisterScreen.tsx:195:            placeholder="Minimum 8 characters"
+src\screens\auth\RegisterScreen.tsx:205:            label="Confirm password"
+src\screens\auth\RegisterScreen.tsx:212:            placeholder="Re-enter your password"
+src\screens\assessments\EnrolledCoursesScreen.tsx:115:        <DetailHeader title="My Courses" subtitle="Your learning journey" onBack={() => navigation.goBack()} />
+src\screens\assessments\EnrolledCoursesScreen.tsx:123:            <ClayButton label="Sign in to continue" onPress={() => useSessionStore.getState().showLogin()} />
+src\screens\assessments\EnrolledCoursesScreen.tsx:135:        title="My Courses"
+src\screens\assessments\EnrolledCoursesScreen.tsx:136:        subtitle="Learn at your own pace"
+src\screens\assessments\EnrolledCoursesScreen.tsx:138:        right={<IconButton icon="download" onPress={() => navigation.navigate('Downloads')} accessibilityLabel="Downloads" />}
+src\screens\assessments\EnrolledCoursesScreen.tsx:152:              placeholder="Search your courses"
+src\screens\assessments\EnrolledCoursesScreen.tsx:161:                  label={item.label}
+src\screens\assessments\EnrolledCoursesScreen.tsx:183:            title={hasFilters ? 'No courses found' : 'No courses yet'}
+src\screens\assessments\EnrolledCoursesScreen.tsx:225:        <SummaryStat icon="play" value={active} label="In progress" />
+src\screens\assessments\EnrolledCoursesScreen.tsx:227:        <SummaryStat icon="check" value={completed} label="Completed" />
+src\screens\assessments\EnrolledCoursesScreen.tsx:229:        <SummaryStat icon="bookopen" value={completedLessons} label="Lessons done" />
+src\screens\assessments\TestListScreen.tsx:22:      <DetailHeader title="All Tests" onBack={() => navigation.goBack()} />
+src\screens\assessments\TestListScreen.tsx:50:          <EmptyState title="No tests for this exam" body="Published tests will appear here when they are available." />
+src\screens\news\NewsFeedScreen.tsx:91:      accessibilityLabel={`Save ${article.title}`}
+src\screens\news\NewsFeedScreen.tsx:121:      accessibilityLabel={`Read top story: ${article.title}`}
+src\screens\news\NewsFeedScreen.tsx:140:            accessibilityLabel={`Demo artwork for ${article.title}`}
+src\screens\news\NewsFeedScreen.tsx:212:      accessibilityLabel={`Read headline: ${article.title}`}
+src\screens\news\NewsFeedScreen.tsx:357:        title={category.data?.title ?? 'News'}
+src\screens\news\NewsFeedScreen.tsx:358:        subtitle="Daily News · Stay Updated"
+src\screens\news\NewsFeedScreen.tsx:430:                  placeholder="Search this news feed"
+src\screens\news\NewsFeedScreen.tsx:437:                    label="Latest"
+src\screens\news\NewsFeedScreen.tsx:442:                    label="Quick reads"
+src\screens\news\NewsFeedScreen.tsx:447:                    label="Free access"
+src\screens\news\NewsFeedScreen.tsx:507:              title={
+src\screens\news\NewsFeedScreen.tsx:533:                label="Load More Stories"
+src\screens\onboarding\OnboardingScreen.tsx:74:            <ClayButton label="Continue" disabled={!goal} onPress={() => setStep(2)} />
+src\screens\onboarding\OnboardingScreen.tsx:99:            <ClayButton label="Browse as guest" onPress={browseAsGuest} />
+src\screens\onboarding\OnboardingScreen.tsx:101:              <View style={styles.authButton}><ClayButton label="Login" tone="ghost" onPress={() => openAuth('Login')} /></View>
+src\screens\onboarding\OnboardingScreen.tsx:102:              <View style={styles.authButton}><ClayButton label="Register" tone="ghost" onPress={() => openAuth('Register')} /></View>
+src\screens\assessments\ResultHistoryScreen.tsx:54:    Alert.alert(
+src\screens\assessments\ResultHistoryScreen.tsx:70:        title="Test Results"
+src\screens\assessments\ResultHistoryScreen.tsx:71:        subtitle="Track your progress"
+src\screens\assessments\ResultHistoryScreen.tsx:118:                  <HistoryStat label="ATTEMPTS" value={`${summary.attempts}`} />
+src\screens\assessments\ResultHistoryScreen.tsx:120:                  <HistoryStat label="AVERAGE" value={`${summary.average}%`} />
+src\screens\assessments\ResultHistoryScreen.tsx:122:                  <HistoryStat label="BEST SCORE" value={`${summary.best}%`} />
+src\screens\assessments\ResultHistoryScreen.tsx:208:              title="No test results yet"
+src\screens\assessments\ResultHistoryScreen.tsx:260:        accessibilityLabel={`Open ${title}, score ${Math.round(item.percent)} percent`}
+src\screens\assessments\ResultHistoryScreen.tsx:281:        {accuracy != null ? <HistoryMeta icon="target" label="Accuracy" value={`${Math.round(accuracy)}%`} /> : null}
+src\screens\assessments\ResultHistoryScreen.tsx:282:        {time ? <HistoryMeta icon="clock" label="Time" value={time} /> : null}
+src\screens\assessments\ResultHistoryScreen.tsx:283:        {rank ? <HistoryMeta icon="award" label="Rank" value={rank.replace('Rank ', '#').split(' / ')[0]} /> : null}
+src\screens\assessments\TestInstructionsScreen.tsx:19:      <DetailHeader title="Instructions" onBack={() => navigation.goBack()} />
+src\screens\assessments\TestInstructionsScreen.tsx:40:              label={start.isPending ? 'Starting…' : 'Begin test'}
+src\screens\news\NewsArticleScreen.tsx:82:      accessibilityLabel={label}
+src\screens\news\NewsArticleScreen.tsx:106:      accessibilityLabel={`Read related story: ${article.title}`}
+src\screens\news\NewsArticleScreen.tsx:219:            label="Back"
+src\screens\news\NewsArticleScreen.tsx:272:              accessibilityLabel={`Demo artwork for ${data.title}`}
+src\screens\news\NewsArticleScreen.tsx:281:              label="Back"
+src\screens\news\NewsArticleScreen.tsx:286:              label={saved ? 'Article saved' : 'Save article'}
+src\screens\news\NewsArticleScreen.tsx:365:              accessibilityLabel="Share article"
+src\screens\news\NewsArticleScreen.tsx:382:              accessibilityLabel={`Article text size: ${
+src\screens\news\NewsArticleScreen.tsx:459:                label={
+src\screens\news\DailyNewsScreen.tsx:110:      accessibilityLabel={`Read top story: ${article.title}`}
+src\screens\news\DailyNewsScreen.tsx:129:            accessibilityLabel={`Demo artwork for ${article.title}`}
+src\screens\news\DailyNewsScreen.tsx:215:      accessibilityLabel={`Read story: ${article.title}`}
+src\screens\news\DailyNewsScreen.tsx:280:            accessibilityLabel={`Save ${article.title}`}
+src\screens\news\DailyNewsScreen.tsx:349:        title="Daily News"
+src\screens\news\DailyNewsScreen.tsx:350:        subtitle="Brief, relevant, exam-ready"
+src\screens\news\DailyNewsScreen.tsx:415:              placeholder="Search headlines, topics or tags"
+src\screens\news\DailyNewsScreen.tsx:546:              title={
+src\screens\documents\CertificateScreen.tsx:92:    Alert.alert(
+src\screens\documents\CertificateScreen.tsx:111:        <DetailHeader title="Certificate" onBack={() => navigation.goBack()} />
+src\screens\documents\CertificateScreen.tsx:123:        title="Certificate"
+src\screens\documents\CertificateScreen.tsx:124:        subtitle={headerSubtitle}
+src\screens\documents\CertificateScreen.tsx:206:              accessibilityLabel={`Certificate ID ${certificateId}. Double tap to share.`}
+src\screens\documents\CertificateScreen.tsx:235:            label={resource.busy ? 'Working…' : 'Download PDF'}
+src\screens\documents\CertificateScreen.tsx:243:            label="Share"
+src\screens\documents\CertificateScreen.tsx:254:          label={resource.busy ? 'Working…' : 'Open official PDF'}
+src\screens\documents\DocumentListScreen.tsx:41:        <DetailHeader title={kind === 'admit_card' ? 'Admit cards' : 'Certificates'} onBack={() => navigation.goBack()} />
+src\screens\documents\DocumentListScreen.tsx:50:        <DetailHeader title={kind === 'admit_card' ? 'Admit cards' : 'Certificates'} onBack={() => navigation.goBack()} />
+src\screens\documents\DocumentListScreen.tsx:58:      <DetailHeader title={kind === 'admit_card' ? 'Admit cards' : 'Certificates'} onBack={() => navigation.goBack()} />
+src\screens\notifications\NotificationsScreen.tsx:37:      Alert.alert('Inbox updated', result.mode === 'mark_read' ? 'All notifications were marked read.' : 'Notifications were archived.');
+src\screens\notifications\NotificationsScreen.tsx:42:    try { await repos.account.markRead(id); await qc.invalidateQueries({queryKey: ['learner']}); } catch { Alert.alert('Could not open notification', 'Please retry.'); return; }
+src\screens\notifications\NotificationsScreen.tsx:52:  if (status !== 'authenticated') return <Screen><DetailHeader title="Notifications" onBack={() => navigation.goBack()} /><EmptyState title="Sign in to view your inbox" body="Class updates and account notifications will appear here." actionLabel="Sign in" onAction={() => useSessionStore.getState().showLogin()} /></Screen>;
+src\screens\notifications\NotificationsScreen.tsx:55:      <DetailHeader title="Notifications" onBack={() => navigation.goBack()} />
+src\screens\notifications\NotificationsScreen.tsx:59:          <Pressable disabled={clear.isPending} onPress={() => Alert.alert('Clear inbox?', 'REDI will mark notifications read or archive them according to your inbox settings.', [{text: 'Cancel', style: 'cancel'}, {text: 'Continue', onPress: () => clear.mutate()}])}>
+src\screens\notifications\NotificationsScreen.tsx:65:            <FilterChip key={item} label={item[0].toUpperCase() + item.slice(1)} selected={cat === item} onPress={() => setCat(item)} />
+src\screens\live\LiveRoomScreen.tsx:2:import {Alert, Pressable, ScrollView, StyleSheet, TextInput, View} from 'react-native';
+src\screens\live\LiveRoomScreen.tsx:27:  const chatInput = React.useRef<React.ElementRef<typeof TextInput>>(null);
+src\screens\live\LiveRoomScreen.tsx:51:        title="Live Class Room"
+src\screens\live\LiveRoomScreen.tsx:52:        subtitle={brand.institute}
+src\screens\live\LiveRoomScreen.tsx:54:        onMore={() => Alert.alert('Class options', 'Playback and classroom controls are available below.')}
+src\screens\live\LiveRoomScreen.tsx:92:            <Pressable accessibilityRole="button" accessibilityLabel="Play" onPress={() => setPaused(false)} style={styles.bigPlay}>
+src\screens\live\LiveRoomScreen.tsx:101:            <PlayerButton icon="skipb" label="Back 10 seconds" onPress={() => seekBy(-10)} />
+src\screens\live\LiveRoomScreen.tsx:102:            <PlayerButton icon="play" label={paused ? 'Play' : 'Pause'} onPress={() => setPaused(value => !value)} />
+src\screens\live\LiveRoomScreen.tsx:103:            <PlayerButton icon="skipf" label="Forward 10 seconds" onPress={() => seekBy(10)} />
+src\screens\live\LiveRoomScreen.tsx:104:            <PlayerButton icon="mic" label="Microphone" onPress={() => chatInput.current?.focus()} />
+src\screens\live\LiveRoomScreen.tsx:106:            <PlayerButton icon="vol" label={muted ? 'Unmute' : 'Mute'} onPress={() => setMuted(value => !value)} />
+src\screens\live\LiveRoomScreen.tsx:107:            <PlayerButton icon="max" label="Full screen" onPress={() => video.current?.presentFullscreenPlayer()} />
+src\screens\live\LiveRoomScreen.tsx:116:          <ClayButton label="Sign in to join" onPress={() => {
+src\screens\live\LiveRoomScreen.tsx:135:              onPress={() => Alert.alert(cls.data!.instructorName, 'REDI faculty member')}
+src\screens\live\LiveRoomScreen.tsx:172:              <TextInput
+src\screens\live\LiveRoomScreen.tsx:177:                placeholder="Type your doubt…"
+src\screens\live\LiveRoomScreen.tsx:179:                style={styles.chatTextInput}
+src\screens\live\LiveRoomScreen.tsx:185:                accessibilityLabel="Send message"
+src\screens\live\LiveRoomScreen.tsx:198:            <ClayButton label="Ask a Doubt" icon="chat" compact onPress={() => chatInput.current?.focus()} />
+src\screens\live\LiveRoomScreen.tsx:199:            <ClayButton label={hand.isPending ? 'Updating…' : raised ? 'Lower Hand' : 'Raise Hand'} icon="flag" tone="ghost" compact disabled={hand.isPending} onPress={() => hand.mutate()} />
+src\screens\live\LiveRoomScreen.tsx:210:    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.playerButton}>
+src\screens\live\LiveScheduleScreen.tsx:66:      Alert.alert(
+src\screens\live\LiveScheduleScreen.tsx:77:      Alert.alert('Class already started', 'Reminders can only be set for upcoming classes.');
+src\screens\live\LiveScheduleScreen.tsx:80:    Alert.alert('Reminder not set', 'REDI could not schedule this reminder. Please try again.');
+src\screens\live\LiveScheduleScreen.tsx:86:        title="Live Classes"
+src\screens\live\LiveScheduleScreen.tsx:87:        subtitle={headerSubtitle}
+src\screens\live\LiveScheduleScreen.tsx:101:                accessibilityLabel={date.toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric'})}
+src\screens\live\LiveScheduleScreen.tsx:128:          <EmptyState title="No classes scheduled" body="Choose another day to see upcoming and recorded sessions." />
+src\screens\live\LiveScheduleScreen.tsx:157:              label={enableAll.isPending
+src\screens\live\LiveScheduleScreen.tsx:219:      {isLive ? <ClayButton label="Join Now" tone="orange" compact onPress={onOpen} /> : null}
+src\screens\live\LiveScheduleScreen.tsx:220:      {ended && item.recordingAvailable ? <ClayButton label="Watch" tone="ghost" compact onPress={onOpen} /> : null}
+src\screens\live\LiveScheduleScreen.tsx:227:          accessibilityLabel={item.reminderSet ? 'Turn off reminder' : 'Set reminder'}

@@ -1,0 +1,8 @@
+<resources>
+    <style name="SplashTheme" parent="AppTheme">
+        <item name="android:windowSplashScreenBackground">@color/redi_splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/redi_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/white</item>
+        <item name="android:windowSplashScreenAnimationDuration">240</item>
+    </style>
+</resources>
