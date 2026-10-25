@@ -5,7 +5,6 @@ import {
   Easing,
   PanResponder,
   View,
-  type GestureResponderEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
@@ -72,7 +71,6 @@ export function usePullRefreshFeedback({
   enabled?: boolean;
 }) {
   const feedbackId = React.useRef(Symbol('pull-feedback')).current;
-  const touchStartY = React.useRef<number | undefined>(undefined);
   const isAtTop = React.useRef(true);
   const pullProgress = React.useRef(0);
   const refreshingRef = React.useRef(refreshing);
@@ -139,16 +137,15 @@ export function usePullRefreshFeedback({
 
   const onScroll = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      isAtTop.current = event.nativeEvent.contentOffset.y <= 0.5;
-      if (!isAtTop.current) {
-        updatePullProgress(0);
-      }
+      const atTop = event.nativeEvent.contentOffset.y <= 0.5;
+      if (atTop === isAtTop.current) return;
+      isAtTop.current = atTop;
+      if (!atTop && pullProgress.current !== 0) updatePullProgress(0);
     },
     [updatePullProgress],
   );
 
   const cancelPull = React.useCallback(() => {
-    touchStartY.current = undefined;
     updatePullProgress(0);
   }, [updatePullProgress]);
 
@@ -193,39 +190,16 @@ export function usePullRefreshFeedback({
       }),
     [cancelPull, finishPull, updatePullProgress],
   );
-  const handleTouchStart = React.useCallback(
-    (event: GestureResponderEvent) => {
-      touchStartY.current =
-        enabledRef.current && !refreshingRef.current && isAtTop.current
-          ? event.nativeEvent.pageY
-          : undefined;
-      updatePullProgress(0);
-    },
-    [updatePullProgress],
-  );
-  const handleTouchMove = React.useCallback(
-    (event: GestureResponderEvent) => {
-      if (touchStartY.current === undefined || !isAtTop.current) return;
-      updatePullProgress(
-        (event.nativeEvent.pageY - touchStartY.current - 8) / 88,
-      );
-    },
-    [updatePullProgress],
-  );
   const gestureHandlers = React.useMemo(
-    () => ({
-      ...panResponder.panHandlers,
-      onTouchStartCapture: handleTouchStart,
-      onTouchMoveCapture: handleTouchMove,
-      onTouchEndCapture: finishPull,
-      onTouchCancelCapture: cancelPull,
-    }),
-    [cancelPull, finishPull, handleTouchMove, handleTouchStart, panResponder.panHandlers],
+    () => panResponder.panHandlers,
+    [panResponder.panHandlers],
   );
   const scrollProps = React.useMemo(
     () => ({
       onScroll,
-      scrollEventThrottle: 16,
+      // Native scroll only throttles at 17ms or above. 16 sent every 120 Hz
+      // frame to JS and made flicks feel uneven on high-refresh panels.
+      scrollEventThrottle: 32,
       overScrollMode: 'never' as const,
       alwaysBounceVertical: true,
     }),

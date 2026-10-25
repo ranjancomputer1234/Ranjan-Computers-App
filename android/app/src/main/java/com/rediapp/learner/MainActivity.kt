@@ -1,15 +1,27 @@
 package com.rediapp.learner
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.view.Display
+import android.view.View
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import kotlin.math.abs
 
 class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Ask for the panel rate before React creates the Surface, then again
+    // after setContentView so the first buffer queue is not stuck at 60 Hz.
+    preferHighestRefreshRate()
     super.onCreate(null)
+    preferHighestRefreshRate()
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
     preferHighestRefreshRate()
   }
 
@@ -28,21 +40,30 @@ class MainActivity : ReactActivity() {
 
   @Suppress("DEPRECATION")
   private fun preferHighestRefreshRate() {
-    val display = windowManager.defaultDisplay
+    val display = windowManager.defaultDisplay ?: return
     val currentMode = display.mode
-    val bestMode = display.supportedModes
-      .asSequence()
-      .filter {
-        it.physicalWidth == currentMode.physicalWidth &&
-          it.physicalHeight == currentMode.physicalHeight
-      }
-      .maxByOrNull { it.refreshRate }
+    val supported = display.supportedModes
+    if (supported.isEmpty()) return
+
+    val sameSize = supported.filter { mode ->
+      abs(mode.physicalWidth - currentMode.physicalWidth) <= 8 &&
+        abs(mode.physicalHeight - currentMode.physicalHeight) <= 8
+    }
+    val bestMode = (if (sameSize.isNotEmpty()) sameSize else supported.asList())
+      .maxByOrNull(Display.Mode::getRefreshRate)
       ?: return
 
-    if (window.attributes.preferredDisplayModeId != bestMode.modeId) {
-      window.attributes = window.attributes.apply {
-        preferredDisplayModeId = bestMode.modeId
-      }
+    val params = window.attributes
+    val modeChanged = params.preferredDisplayModeId != bestMode.modeId
+    val rateChanged = params.preferredRefreshRate < bestMode.refreshRate
+    if (modeChanged || rateChanged) {
+      params.preferredDisplayModeId = bestMode.modeId
+      params.preferredRefreshRate = bestMode.refreshRate
+      window.attributes = params
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+      window.peekDecorView()?.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_HIGH)
     }
   }
 

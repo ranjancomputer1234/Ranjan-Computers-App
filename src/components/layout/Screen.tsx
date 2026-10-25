@@ -442,10 +442,9 @@ export function Screen({
     | 'onResponderRelease'
     | 'onResponderTerminate'
     | 'onResponderTerminationRequest'
-    | 'onTouchStartCapture'
-    | 'onTouchMoveCapture'
-    | 'onTouchEndCapture'
-    | 'onTouchCancelCapture'
+    | 'onResponderReject'
+    | 'onResponderStart'
+    | 'onResponderEnd'
   >;
 }) {
   const insets = useSafeAreaInsets();
