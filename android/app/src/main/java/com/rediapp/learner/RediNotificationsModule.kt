@@ -150,7 +150,7 @@ class RediNotificationsModule(private val context: ReactApplicationContext) : Re
     activeModule = WeakReference(this)
   }
 
-  override fun getName() = "RediNotifications"
+  override fun getName() = "RaciNotifications"
 
   @ReactMethod
   fun isSupported(promise: Promise) = promise.resolve(BuildConfig.REDI_FIREBASE_ENABLED)

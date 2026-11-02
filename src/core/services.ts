@@ -9,18 +9,18 @@ export type StoreProduct = {productId: string; formattedPrice: string; currency:
 
 export const paymentService = {
   async product(productId: string): Promise<StoreProduct> {
-    if (!NativeModules.RediBilling) throw new Error('Google Play purchases are unavailable on this device.');
-    return NativeModules.RediBilling.getProduct(productId);
+    if (!NativeModules.RaciBilling) throw new Error('Google Play purchases are unavailable on this device.');
+    return NativeModules.RaciBilling.getProduct(productId);
   },
   async restore(): Promise<Record<string, unknown>[]> {
-    if (!NativeModules.RediBilling) throw new Error('Google Play purchases are unavailable on this device.');
-    return NativeModules.RediBilling.restore();
+    if (!NativeModules.RaciBilling) throw new Error('Google Play purchases are unavailable on this device.');
+    return NativeModules.RaciBilling.restore();
   },
   async launch(_orderId: string, _amountMinor: number, product?: StoreProduct, accountId?: string): Promise<PaymentLaunchResult> {
-    if (appConfig.paymentRoute !== 'play_billing' || !NativeModules.RediBilling || !product || !accountId) {
+    if (appConfig.paymentRoute !== 'play_billing' || !NativeModules.RaciBilling || !product || !accountId) {
       throw new Error('This purchase is not available yet.');
     }
-    return NativeModules.RediBilling.purchase(product.productId, product.priceMicros, product.currency, accountId);
+    return NativeModules.RaciBilling.purchase(product.productId, product.priceMicros, product.currency, accountId);
   },
 };
 

@@ -34,7 +34,7 @@ type NativeReminderModule = {
   cancel: (identifier: string) => Promise<void>;
 };
 
-const nativeReminders = NativeModules.RediReminders as NativeReminderModule | undefined;
+const nativeReminders = NativeModules.RaciReminders as NativeReminderModule | undefined;
 const LEARNING_REMINDER_ID = 'learning-daily';
 const CLASS_REMINDER_PREFIX = 'live-class-';
 export const LIVE_CLASS_REMINDER_LEAD_MINUTES = 15;

@@ -66,7 +66,7 @@ export function ProtectedViewerScreen() {
         setState({mode: 'note', note: delivery.note});
         return;
       }
-      const pdf = NativeModules.RediPdf as PdfModule | undefined;
+      const pdf = NativeModules.RaciPdf as PdfModule | undefined;
       if (!pdf) {
         setState({mode: 'note', note: 'The in-app PDF viewer is not available on this device.'});
         return;
@@ -110,7 +110,7 @@ export function ProtectedViewerScreen() {
     try {
       const auth = await repos.account.authorizeDownload(params.resourceId);
       if (!auth.offlineGrant) throw new Error('Offline authorization is no longer valid.');
-      const pdf = NativeModules.RediPdf as PdfModule;
+      const pdf = NativeModules.RaciPdf as PdfModule;
       const page = await pdf.renderPage(state.path, index);
       setState({...state, pageCount: page.pageCount, index: page.index, imagePath: page.path});
     } catch (cause) {

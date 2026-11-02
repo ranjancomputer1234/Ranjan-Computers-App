@@ -24,7 +24,7 @@ export type AppConfig = {
   };
 };
 
-const native = NativeModules.RediBuildConfig ?? {};
+const native = NativeModules.RaciBuildConfig ?? {};
 
 /** Learner API. Paths in the handover are relative to this `/api` prefix. */
 export const PRODUCTION_API_BASE_URL = 'https://redi-api-production.up.railway.app/api';
@@ -43,7 +43,11 @@ function resolveApiBaseUrl(configured?: string): string {
     // The debug app can still be compiled with the emulator loopback. Those seed
     // accounts live on the production API, and no local server is required for them.
     if (isLocalApiHost(host)) return PRODUCTION_API_BASE_URL;
-    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${url.pathname}${url.search}`.replace(/\/+$/, '');
+    // Learner paths such as /auth/login are mounted under /api. A native build
+    // that only baked the host still has to reach that prefix.
+    const path = url.pathname.replace(/\/+$/, '');
+    const pathname = path && path !== '/' ? path : '/api';
+    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${pathname}${url.search}`.replace(/\/+$/, '');
   } catch {
     return PRODUCTION_API_BASE_URL;
   }

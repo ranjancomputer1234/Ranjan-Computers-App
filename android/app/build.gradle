@@ -29,9 +29,15 @@ def loadDotEnv = { File envFile ->
 // Server secrets (offline grant, Mux, Cloudinary) stay in .env and are not copied into BuildConfig.
 def dotenv = loadDotEnv(new File(rootProject.projectDir, "../.env"))
 def rediValue = { name, fallback = "" ->
-    def fromFile = dotenv[name]
-    if (fromFile != null && !fromFile.toString().trim().isEmpty()) return fromFile.toString()
-    return providers.gradleProperty(name).orElse(providers.environmentVariable(name)).getOrElse(fallback)
+    def names = [name]
+    if (name.startsWith("REDI_")) names.add("RACI_" + name.substring("REDI_".length()))
+    for (candidate in names) {
+        def fromFile = dotenv[candidate]
+        if (fromFile != null && !fromFile.toString().trim().isEmpty()) return fromFile.toString()
+        def fromEnv = providers.gradleProperty(candidate).orElse(providers.environmentVariable(candidate)).getOrNull()
+        if (fromEnv != null && !fromEnv.toString().trim().isEmpty()) return fromEnv.toString()
+    }
+    return fallback
 }
 def quoted = { value -> '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"' }
 def uploadStore = rediValue("REDI_UPLOAD_STORE_FILE")
@@ -77,7 +83,7 @@ android {
 
     namespace "com.rediapp.learner"
     defaultConfig {
-        applicationId "com.rediapp.learner"
+        applicationId "com.raciapp.learner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode rediValue("REDI_VERSION_CODE", "1").toInteger()

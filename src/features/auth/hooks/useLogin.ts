@@ -35,19 +35,10 @@ export function useLogin() {
 
   const onSubmit = form.handleSubmit(signIn);
 
-  const loginWithSeedAccount = React.useCallback(
-    (values: LoginFormValues) => {
-      form.reset(values);
-      void signIn(values);
-    },
-    [form, signIn],
-  );
-
   return {
     form,
     busy,
     onSubmit,
-    loginWithSeedAccount,
     enterGuest,
   };
 }

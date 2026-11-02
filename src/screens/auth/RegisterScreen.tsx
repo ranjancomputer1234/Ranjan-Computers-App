@@ -31,18 +31,16 @@ function SignupField({label, icon, error, secure, ...inputProps}: SignupFieldPro
 
   return (
     <View style={styles.signupField}>
-      <AppText weight="800" size={9.5} color="#757575" style={styles.fieldLabel}>
+      <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
         {label}
       </AppText>
       <View style={[styles.signupInputSurface, error ? styles.signupInputError : null]}>
-        <View style={styles.signupFieldIcon} accessibilityElementsHidden>
-          <Icon name={icon} size={15} color={error ? colors.error : colors.primary} />
-        </View>
+        <Icon name={icon} size={18} color={error ? colors.error : colors.text3} />
         <TextInput
           {...inputProps}
           accessibilityLabel={tx(label)}
           placeholder={inputProps.placeholder ? tx(inputProps.placeholder) : undefined}
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.text3}
           secureTextEntry={secure ? hidden : false}
           style={styles.signupTextInput}
         />
@@ -52,12 +50,12 @@ function SignupField({label, icon, error, secure, ...inputProps}: SignupFieldPro
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel={tx(hidden ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`)}>
-            <Icon name="eye" size={16} color="#98A2B3" />
+            <Icon name="eye" size={18} color={colors.text3} />
           </Pressable>
         ) : null}
       </View>
       {error ? (
-        <AppText accessibilityRole="alert" size={9.5} color={colors.error}>
+        <AppText accessibilityRole="alert" size={12} color={colors.error}>
           {error}
         </AppText>
       ) : null}
@@ -85,7 +83,8 @@ export function RegisterScreen() {
       nextErrors.email = 'Enter a valid email address.';
     }
     if (phone && !/^[6-9]\d{9}$/.test(phone)) nextErrors.phone = 'Enter a valid 10-digit mobile number.';
-    if (city.trim().length > 100) nextErrors.city = 'City must be 100 characters or fewer.';
+    if (!city.trim()) nextErrors.city = 'Enter your city.';
+    else if (city.trim().length > 100) nextErrors.city = 'City must be 100 characters or fewer.';
     if (password.length < 6) nextErrors.password = 'Use at least 6 characters.';
     if (!confirmPassword) nextErrors.confirmPassword = 'Confirm your password.';
     else if (confirmPassword !== password) nextErrors.confirmPassword = 'Passwords do not match.';
@@ -106,7 +105,7 @@ export function RegisterScreen() {
       lastName: lastName.trim(),
       email: email.trim().toLowerCase(),
       phone: phone || undefined,
-      city: city.trim() || undefined,
+      city: city.trim(),
       password,
     });
     await useSessionStore.getState().setAuthenticated(result.tokens, result.profile);
@@ -115,31 +114,33 @@ export function RegisterScreen() {
   return (
     <Screen padded={false}>
       <ScrollView
+        style={styles.loginScroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.signupPage}>
-        <Gradient colors={gradients.loginHero} start={{x: 0.08, y: 0}} end={{x: 0.92, y: 1}} style={styles.hero}>
-          <RediLogo size={66} />
-          <AppText weight="900" size={20} color="#fff" center style={styles.instituteName}>
+        contentContainerStyle={styles.loginPage}>
+        <View style={styles.loginStage}>
+        <Gradient colors={gradients.loginHero} start={{x: 0.08, y: 0}} end={{x: 0.92, y: 1}} style={styles.loginBrand}>
+          <RediLogo size={72} />
+          <AppText weight="800" size={22} color="#fff" center style={styles.loginInstitute}>
             Ranjan Computer Institute
           </AppText>
-          <AppText weight="600" size={10} color="#FFD54F" center style={styles.tagline}>
+          <AppText weight="600" size={12} color="#FFD54F" center style={styles.loginTagline}>
             Learn Computer With AI
           </AppText>
-          <View style={styles.chalkboard}>
-            <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.chalkText}>
-              Learn <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.growText}>Grow</AppText>
+          <View style={styles.loginBoard}>
+            <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginChalk}>
+              Learn <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginGrow}>Grow</AppText>
             </AppText>
-            <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.chalkText}>
+            <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginChalk}>
               Succeed
             </AppText>
           </View>
         </Gradient>
 
-        <View style={styles.signupCard}>
-          <View style={styles.signupCardHeading}>
-            <AppText weight="900" size={17} color={colors.navy} center>Create Your Account</AppText>
-            <AppText size={10.5} color={colors.text2} center>Join RACI and begin your learning journey.</AppText>
+        <View style={styles.formCard}>
+          <View style={styles.loginHeading}>
+            <AppText weight="800" size={22} color={colors.navy} center style={styles.welcome}>Create your account</AppText>
+            <AppText weight="500" size={14} color={colors.text2} center>Join RACI and begin your learning journey.</AppText>
           </View>
 
           <SignupField
@@ -211,7 +212,7 @@ export function RegisterScreen() {
           />
 
           <SignupField
-            label="City (optional)"
+            label="City"
             icon="pin"
             value={city}
             onChangeText={value => {
@@ -262,8 +263,8 @@ export function RegisterScreen() {
 
           {register.error ? (
             <View style={styles.signupApiError}>
-              <Icon name="shield" size={15} color={colors.error} />
-              <AppText accessibilityRole="alert" size={10} color={colors.error} style={styles.signupApiErrorText}>
+              <Icon name="shield" size={16} color={colors.error} />
+              <AppText accessibilityRole="alert" size={13} color={colors.error} style={styles.signupApiErrorText}>
                 {register.error}
               </AppText>
             </View>
@@ -274,27 +275,29 @@ export function RegisterScreen() {
             disabled={register.busy}
             accessibilityRole="button"
             accessibilityState={{disabled: register.busy}}
-            style={({pressed}) => [styles.signupButtonPressable, pressed && styles.pressed, register.busy && styles.disabled]}>
-            <Gradient colors={gradients.primaryButton} style={styles.signupButton}>
-              <AppText weight="800" size={12} color="#fff">
+            style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, register.busy && styles.disabled]}>
+            <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
+              <AppText weight="700" size={16} color="#fff" center>
                 {register.busy ? 'Creating your account…' : 'Create account'}
               </AppText>
-              {!register.busy ? <Icon name="chev" size={16} color="#fff" /> : null}
             </Gradient>
           </Pressable>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate('Login')}
-          accessibilityRole="button"
-          style={styles.centerLink}>
-          <AppText weight="600" size={10.5} color="#757575">Already have an account? </AppText>
-          <AppText weight="800" size={10.5} color={colors.primary}>Sign in</AppText>
-        </Pressable>
+        <View style={styles.loginFooter}>
+          <Pressable
+            onPress={() => navigation.navigate('Login')}
+            accessibilityRole="button"
+            style={styles.loginLink}>
+            <AppText weight="500" size={14} color={colors.text2}>Already have an account? </AppText>
+            <AppText weight="700" size={14} color={colors.primary}>Sign in</AppText>
+          </Pressable>
 
-        <View style={styles.signupTrustRow} accessibilityElementsHidden>
-          <Icon name="shield" size={13} color={colors.success} />
-          <AppText weight="600" size={9} color={colors.text3}>Your details are private and secure</AppText>
+          <View style={styles.signupTrustRow}>
+            <Icon name="shield" size={14} color={colors.success} />
+            <AppText weight="500" size={12} color={colors.text3}>Your details are private and secure</AppText>
+          </View>
+        </View>
         </View>
       </ScrollView>
     </Screen>

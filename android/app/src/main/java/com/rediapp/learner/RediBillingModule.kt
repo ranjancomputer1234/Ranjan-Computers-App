@@ -20,7 +20,7 @@ class RediBillingModule(context: ReactApplicationContext) : ReactContextBaseJava
     .enableAutoServiceReconnection()
     .build()
 
-  override fun getName() = "RediBilling"
+  override fun getName() = "RaciBilling"
 
   private fun ready(promise: Promise, action: () -> Unit) {
     main.post {

@@ -14,7 +14,7 @@ import java.io.FileOutputStream
 
 /** Renders one page of an app-private PDF. The bitmap never leaves app cache. */
 class RediPdfModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
-  override fun getName() = "RediPdf"
+  override fun getName() = "RaciPdf"
 
   @ReactMethod
   fun renderPage(path: String, index: Int, promise: Promise) {

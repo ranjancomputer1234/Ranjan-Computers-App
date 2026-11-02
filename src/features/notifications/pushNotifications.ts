@@ -21,7 +21,7 @@ type NativePushModule = {
   removeListeners: (count: number) => void;
 };
 
-const nativePush = NativeModules.RediNotifications as NativePushModule | undefined;
+const nativePush = NativeModules.RaciNotifications as NativePushModule | undefined;
 const contentKinds = new Set<ContentKind>([
   'course', 'lesson', 'test', 'news', 'fact', 'topic', 'interviewQuestion',
   'interviewCategory', 'liveClass', 'document', 'exam', 'section',
@@ -80,7 +80,7 @@ export function subscribeToNotificationEvents(
   onToken: (token: string) => void,
 ): () => void {
   if (!nativePush) return () => {};
-  const emitter = new NativeEventEmitter(NativeModules.RediNotifications);
+  const emitter = new NativeEventEmitter(NativeModules.RaciNotifications);
   const openSub = emitter.addListener('notificationOpened', payload => onOpen(payload as unknown as OpenedNotification));
   const tokenSub = emitter.addListener('pushTokenChanged', token => onToken(String(token)));
   return () => {

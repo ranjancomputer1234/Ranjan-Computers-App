@@ -7,7 +7,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.uimanager.ViewManager
 
 class RediBuildConfigModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
-  override fun getName() = "RediBuildConfig"
+  override fun getName() = "RaciBuildConfig"
   override fun getConstants(): MutableMap<String, Any> = mutableMapOf(
     "debugBuild" to BuildConfig.DEBUG,
     "apiBaseUrl" to BuildConfig.REDI_API_BASE_URL,

@@ -10,15 +10,13 @@ import {RediLogo} from '../../assets/illustrations';
 import {Icon} from '../../assets/icons';
 import type {RootStackParamList} from '../../navigation/types';
 import {useLogin} from '../../features/auth/hooks/useLogin';
-import {DEV_SEED_ACCOUNTS} from '../../features/auth/devSeedAccounts';
-import {appConfig} from '../../core/config';
 import {styles} from './styles';
 import {useUiTranslation} from '../../features/settings/uiTranslations';
 
 export function LoginScreen() {
   const tx = useUiTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const {form, busy, onSubmit, loginWithSeedAccount, enterGuest} = useLogin();
+  const {form, busy, onSubmit, enterGuest} = useLogin();
   const [passwordHidden, setPasswordHidden] = React.useState(true);
 
   const identifier = form.watch('identifier');
@@ -28,177 +26,125 @@ export function LoginScreen() {
   return (
     <Screen padded={false}>
       <ScrollView
+        style={styles.loginScroll}
         contentContainerStyle={styles.loginPage}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        <Gradient
-          colors={gradients.loginHero}
-          start={{x: 0.08, y: 0}}
-          end={{x: 0.92, y: 1}}
-          style={styles.hero}>
-          <RediLogo size={66} />
-          <AppText weight="900" size={20} color="#fff" center style={styles.instituteName}>
-            Ranjan Computer Institute
-          </AppText>
-          <AppText weight="600" size={10} color="#FFD54F" center style={styles.tagline}>
-            Learn Computer With AI
-          </AppText>
-          <View style={styles.chalkboard}>
-            <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.chalkText}>
-              Learn <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.growText}>Grow</AppText>
+        <View style={styles.loginStage}>
+          <Gradient
+            colors={gradients.loginHero}
+            start={{x: 0.08, y: 0}}
+            end={{x: 0.92, y: 1}}
+            style={styles.loginBrand}>
+            <RediLogo size={72} />
+            <AppText weight="800" size={22} color="#fff" center style={styles.loginInstitute}>
+              Ranjan Computer Institute
             </AppText>
-            <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.chalkText}>
-              Succeed
+            <AppText weight="600" size={12} color="#FFD54F" center style={styles.loginTagline}>
+              Learn Computer With AI
             </AppText>
-          </View>
-        </Gradient>
-
-        <View style={styles.formCard}>
-          <AppText weight="900" size={16} color={colors.navy} center style={styles.welcome}>
-            Welcome Back!
-          </AppText>
-
-          <View style={styles.field}>
-            <AppText weight="800" size={9.5} color="#757575" style={styles.fieldLabel}>
-              Email address
-            </AppText>
-            <View style={styles.inputSurface}>
-              <TextInput
-                value={identifier}
-                onChangeText={text => form.setValue('identifier', text, {shouldValidate: Boolean(identifierError)})}
-                placeholder="name@example.com"
-                placeholderTextColor={colors.ink}
-                accessibilityLabel="Email address"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="username"
-                textContentType="username"
-                style={styles.textInput}
-              />
-            </View>
-            {identifierError ? <AppText size={10} color={colors.error}>{identifierError}</AppText> : null}
-          </View>
-
-          <View style={styles.field}>
-            <AppText weight="800" size={9.5} color="#757575" style={styles.fieldLabel}>
-              Password
-            </AppText>
-            <View style={styles.inputSurface}>
-              <Icon name="lock" size={15} color="#9E9E9E" />
-              <TextInput
-                value={form.watch('password')}
-                onChangeText={text => form.setValue('password', text, {shouldValidate: Boolean(passwordError)})}
-                placeholder="••••••••"
-                placeholderTextColor={colors.ink}
-                accessibilityLabel={tx('Password')}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="password"
-                textContentType="password"
-                secureTextEntry={passwordHidden}
-                style={styles.textInput}
-              />
-              <Pressable
-                onPress={() => setPasswordHidden(hidden => !hidden)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={tx(passwordHidden ? 'Show password' : 'Hide password')}>
-                <Icon name="eye" size={15} color="#9E9E9E" />
-              </Pressable>
-            </View>
-            {passwordError ? <AppText size={10} color={colors.error}>{passwordError}</AppText> : null}
-          </View>
-
-          <Pressable
-            onPress={() => {
-              onSubmit();
-            }}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityState={{disabled: busy}}
-            style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, busy && styles.disabled]}>
-            <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
-              <AppText weight="800" size={12} color="#fff" center>
-                {busy ? 'Signing in…' : 'Login to Continue'}
+            <View style={styles.loginBoard}>
+              <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginChalk}>
+                Learn <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginGrow}>Grow</AppText>
               </AppText>
-            </Gradient>
-          </Pressable>
-        </View>
-
-        {DEV_SEED_ACCOUNTS.length ? (
-          <View style={styles.seedCard}>
-            <View style={styles.seedHeading}>
-              <View style={styles.seedIcon}>
-                <Icon name="user" size={14} color={colors.primary} />
-              </View>
-              <View style={styles.seedHeadingCopy}>
-                <AppText weight="900" size={13} color={colors.navy}>
-                  Debug login
-                </AppText>
-                <AppText size={9.5} color={colors.text2}>
-                  Development only · {appConfig.apiBaseUrl}
-                </AppText>
-              </View>
+              <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginChalk}>
+                Succeed
+              </AppText>
             </View>
-            {DEV_SEED_ACCOUNTS.map(account => (
-              <Pressable
-                key={account.email}
-                accessibilityRole="button"
-                accessibilityLabel={`Sign in as ${account.name}`}
-                accessibilityState={{disabled: busy}}
-                disabled={busy}
-                onPress={() =>
-                  loginWithSeedAccount({
-                    identifier: account.email,
-                    password: account.password,
-                  })
-                }
-                style={({pressed}) => [
-                  styles.seedAccount,
-                  pressed && styles.pressed,
-                  busy && styles.disabled,
-                ]}>
-                <View style={styles.seedAvatar}>
-                  <AppText weight="900" size={13} color="#fff">
-                    {account.name.charAt(0)}
-                  </AppText>
-                </View>
-                <View style={styles.seedAccountCopy}>
-                  <AppText weight="800" size={11.5} color={colors.navy}>
-                    Continue as {account.name}
-                  </AppText>
-                  <AppText size={9} color={colors.primary} numberOfLines={1}>
-                    {account.email}
-                  </AppText>
-                  <AppText size={9} color={colors.text2}>
-                    {account.description}
-                  </AppText>
-                </View>
-                <Icon name="chev" size={14} color={colors.primary} />
-              </Pressable>
-            ))}
+          </Gradient>
+
+          <View style={styles.formCard}>
+            <View style={styles.loginHeading}>
+              <AppText weight="800" size={22} color={colors.navy} center style={styles.welcome}>
+                Welcome back
+              </AppText>
+              <AppText weight="500" size={14} color={colors.text2} center>
+                Sign in to continue learning
+              </AppText>
+            </View>
+
+            <View style={styles.field}>
+              <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
+                Email address
+              </AppText>
+              <View style={styles.inputSurface}>
+                <Icon name="user" size={18} color={colors.text3} />
+                <TextInput
+                  value={identifier}
+                  onChangeText={text => form.setValue('identifier', text, {shouldValidate: Boolean(identifierError)})}
+                  placeholder="name@example.com"
+                  placeholderTextColor={colors.text3}
+                  accessibilityLabel="Email address"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="username"
+                  textContentType="username"
+                  style={styles.textInput}
+                />
+              </View>
+              {identifierError ? <AppText size={12} color={colors.error}>{identifierError}</AppText> : null}
+            </View>
+
+            <View style={styles.field}>
+              <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
+                Password
+              </AppText>
+              <View style={styles.inputSurface}>
+                <Icon name="lock" size={18} color={colors.text3} />
+                <TextInput
+                  value={form.watch('password')}
+                  onChangeText={text => form.setValue('password', text, {shouldValidate: Boolean(passwordError)})}
+                  placeholder="Enter your password"
+                  placeholderTextColor={colors.text3}
+                  accessibilityLabel={tx('Password')}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="password"
+                  textContentType="password"
+                  secureTextEntry={passwordHidden}
+                  style={styles.textInput}
+                />
+                <Pressable
+                  onPress={() => setPasswordHidden(hidden => !hidden)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={tx(passwordHidden ? 'Show password' : 'Hide password')}>
+                  <Icon name="eye" size={18} color={colors.text3} />
+                </Pressable>
+              </View>
+              {passwordError ? <AppText size={12} color={colors.error}>{passwordError}</AppText> : null}
+            </View>
+
+            <Pressable
+              onPress={() => {
+                onSubmit();
+              }}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityState={{disabled: busy}}
+              style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, busy && styles.disabled]}>
+              <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
+                <AppText weight="700" size={16} color="#fff" center>
+                  {busy ? 'Signing in…' : 'Login to Continue'}
+                </AppText>
+              </Gradient>
+            </Pressable>
           </View>
-        ) : null}
 
-        <Pressable
-          onPress={() => navigation.navigate('Register')}
-          accessibilityRole="button"
-          style={styles.centerLink}>
-          <AppText weight="600" size={10.5} color="#757575" style={styles.accountText}>New to RACI? </AppText>
-          <AppText weight="800" size={10.5} color={colors.primary} style={styles.accountText}>Create an account</AppText>
-        </Pressable>
+          <View style={styles.loginFooter}>
+            <Pressable
+              onPress={() => navigation.navigate('Register')}
+              accessibilityRole="button"
+              style={styles.loginLink}>
+              <AppText weight="500" size={14} color={colors.text2}>New to RACI? </AppText>
+              <AppText weight="700" size={14} color={colors.primary}>Create an account</AppText>
+            </Pressable>
 
-        <Pressable onPress={() => enterGuest()} accessibilityRole="button" style={styles.centerLink}>
-          <AppText weight="600" size={9} color="#9E9E9E">or </AppText>
-          <AppText weight="600" size={9} color={colors.primary}>browse as guest</AppText>
-        </Pressable>
-
-        <View style={styles.dots} accessibilityElementsHidden>
-          <View style={styles.dotOn} />
-          <View style={styles.dot} />
-          <View style={styles.dot} />
-          <View style={styles.dot} />
+            <Pressable onPress={() => enterGuest()} accessibilityRole="button" style={styles.loginLink}>
+              <AppText weight="600" size={14} color={colors.primary}>Browse as guest</AppText>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </Screen>
