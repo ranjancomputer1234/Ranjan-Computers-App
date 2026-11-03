@@ -22,14 +22,19 @@ type CardProps = {
   children?: React.ReactNode;
   onPress?: (event: GestureResponderEvent) => void;
   padded?: boolean;
+  accessibilityLabel?: string;
 };
 
-export function ClayCard({variant = 'white', style, children, onPress, padded = true}: CardProps) {
+export function ClayCard({variant = 'white', style, children, onPress, padded = true, accessibilityLabel}: CardProps) {
   const backgroundColor = clay[variant].bg;
   const surface = [styles.card, padded && styles.cardPad, {backgroundColor, boxShadow: clayShadow(variant)}, style];
   if (!onPress) return <View style={surface}>{children}</View>;
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({pressed}) => [surface, {opacity: pressed ? 0.92 : 1}]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      style={({pressed}) => [surface, {opacity: pressed ? 0.92 : 1}]}>
       {children}
     </Pressable>
   );

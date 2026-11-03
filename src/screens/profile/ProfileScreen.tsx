@@ -1,9 +1,10 @@
 import React from 'react';
-import {Image, Pressable, ScrollView, View} from 'react-native';
+import {Alert, Image, Pressable, ScrollView, View} from 'react-native';
 import {usePullRefreshFeedback} from '../../components/ui/AppRefreshControl';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSessionStore} from '../../core/session';
+import {useAsyncAction} from '../../core/useAsyncAction';
 import {clay, colors, gradients} from '../../theme';
 import {AppText, ClayButton, ErrorState, Skeleton} from '../../components/ui';
 import {ClayCard, IconButton} from '../../components/ui/Clay';
@@ -62,6 +63,18 @@ export function ProfileScreen() {
     onRefresh: refresh,
     enabled: status === 'authenticated',
   });
+  const signOut = useAsyncAction(async () => {
+    await useSessionStore.getState().logout();
+  });
+  const confirmLogout = () =>
+    Alert.alert(
+      'Sign out of RACI?',
+      'Your learning progress will stay safe. You can sign in again anytime to continue.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {text: 'Sign out', style: 'destructive', onPress: () => void signOut.run()},
+      ],
+    );
 
   const admitCard = docs.data?.find(document => document.status === 'issued');
   const issuedCertificates = certificates.data?.filter(document => document.status === 'issued').length ?? 0;
@@ -158,6 +171,13 @@ export function ProfileScreen() {
 
             {admitCard ? (
               <AdmitCardBanner document={admitCard} onPress={() => navigation.navigate('AdmitCard', {documentId: admitCard.id})} />
+            ) : null}
+
+            <LogoutRow busy={signOut.busy} onPress={confirmLogout} />
+            {signOut.error ? (
+              <AppText size={12} color={colors.error}>
+                {signOut.error}
+              </AppText>
             ) : null}
           </>
         ) : null}
@@ -295,6 +315,30 @@ function AccountRow({label, subtitle, icon, variant, onPress}: MenuRow) {
           </AppText>
         </View>
         <Icon name="chev" size={15} color="#B0BEC5" />
+      </View>
+    </ClayCard>
+  );
+}
+
+function LogoutRow({busy, onPress}: {busy: boolean; onPress: () => void}) {
+  return (
+    <ClayCard
+      variant="white"
+      onPress={busy ? undefined : onPress}
+      style={styles.logoutCard}
+      accessibilityLabel="Logout">
+      <View style={styles.row}>
+        <View style={[styles.menuIcon, {backgroundColor: clay.red.bg}]}>
+          <Icon name="logout" size={18} color={colors.error} />
+        </View>
+        <View style={styles.rowCopy}>
+          <AppText weight="800" size={13.5} color={colors.error} numberOfLines={1}>
+            {busy ? 'Signing out…' : 'Logout'}
+          </AppText>
+          <AppText size={10.5} color={colors.text2} numberOfLines={1} style={styles.rowSubtitle}>
+            You will need to login again
+          </AppText>
+        </View>
       </View>
     </ClayCard>
   );

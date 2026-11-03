@@ -107,6 +107,8 @@ export type CatalogItem = {
   targetId?: EntityId;
   /** Raw API targetKind (`course`, `catalog`, `section`, and the rest of the handover list). */
   targetKind?: string;
+  /** Explore-section filter from the API: `all`, `free`, or `paid`. */
+  pricingFilter?: PricingFilter;
   /** Parent course for lesson search results. */
   courseId?: EntityId;
   access: AccessDecision;
@@ -500,8 +502,9 @@ export type HomeDashboard = {
   banners: Array<{
     id: EntityId;
     title: string;
-    subtitle?: string;
-    ctaLabel?: string;
+    /** Screen-reader description. The home carousel does not draw this. */
+    altText?: string;
+    /** Required for a banner to appear. The carousel draws this image only. */
     imageUrl?: string;
     targetKind?: string;
     targetId?: EntityId;

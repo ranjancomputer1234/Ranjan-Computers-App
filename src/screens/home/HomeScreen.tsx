@@ -2,6 +2,8 @@ import {createThemedStyles} from '../../theme';
 import React from 'react';
 import {
   Alert,
+  AppState,
+  Image,
   Pressable,
   ScrollView,
   useWindowDimensions,
@@ -11,7 +13,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import {usePullRefreshFeedback} from '../../components/ui/AppRefreshControl';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { colors, gradients, space } from '../../theme';
 import {
   AppText,
@@ -22,12 +24,13 @@ import {
   SearchInput,
 } from '../../components/ui';
 import { BrandedHeader, Screen } from '../../components/layout/Screen';
-import { CourseCatalogCard, ExploreTile } from '../../components/content/Cards';
+import { CourseCatalogCard } from '../../components/content/Cards';
+import { ExploreHomeGrid } from '../../components/content/ExploreOptions';
 import { Gradient } from '../../components/ui/Gradient';
 import { BooksArt, Chalkboard, TeacherArt } from '../../assets/illustrations';
-import { ICON_NAMES, Icon, type IconName } from '../../assets/icons';
+import { Icon } from '../../assets/icons';
 import type { HomeNav } from '../../navigation/types';
-import type { CatalogItem, LiveClass } from '../../core/types';
+import type { HomeDashboard, LiveClass } from '../../core/types';
 import { ClayCard } from '../../components/ui/Clay';
 import { openPublishedTarget, showLearnerUnavailable } from '../../features/catalog/openPublishedTarget';
 import { useHomeDashboard } from '../../features/home/hooks/useHomeDashboard';
@@ -56,10 +59,197 @@ function liveActionLabel(item: LiveClass) {
   return 'Join Now';
 }
 
-function sectionIcon(item: CatalogItem): IconName {
-  return ICON_NAMES.includes(item.icon as IconName)
-    ? (item.icon as IconName)
-    : 'bookopen';
+type HomeBanner = HomeDashboard['banners'][number];
+
+const BANNER_INTERVAL_MS = 10_000;
+
+function AdminBannerCarousel({
+  banners,
+  onOpen,
+}: {
+  banners: HomeBanner[];
+  onOpen: (banner: HomeBanner) => void;
+}) {
+  const focused = useIsFocused();
+  const loop = banners.length > 1;
+  const slides = React.useMemo(
+    () => (loop ? [banners[banners.length - 1], ...banners, banners[0]] : banners),
+    [banners, loop],
+  );
+  const signature = banners.map(banner => banner.id).join('|');
+  const scroller = React.useRef<ScrollViewInstance>(null);
+  const dragging = React.useRef(false);
+  const correcting = React.useRef(false);
+  const indexRef = React.useRef(0);
+  const [index, setIndex] = React.useState(0);
+  const [cycle, setCycle] = React.useState(0);
+  const [track, setTrack] = React.useState(0);
+  const [appActive, setAppActive] = React.useState(AppState.currentState === 'active');
+
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      setAppActive(state === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+
+  React.useEffect(() => {
+    indexRef.current = 0;
+    setIndex(0);
+  }, [signature]);
+
+  React.useEffect(() => {
+    if (track <= 0) return;
+    const page = loop ? indexRef.current + 1 : indexRef.current;
+    scroller.current?.scrollTo({x: page * track, animated: false});
+  }, [track, loop, signature]);
+
+  React.useEffect(() => {
+    if (!loop || !focused || !appActive || track <= 0) return undefined;
+    const timer = setInterval(() => {
+      if (dragging.current) return;
+      const count = banners.length;
+      const next = (indexRef.current + 1) % count;
+      const targetPage = indexRef.current + 2;
+      indexRef.current = next;
+      setIndex(next);
+      scroller.current?.scrollTo({x: targetPage * track, animated: true});
+    }, BANNER_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [appActive, banners.length, cycle, focused, loop, track]);
+
+  const settlePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (track <= 0 || correcting.current) return;
+    let page = Math.round(event.nativeEvent.contentOffset.x / track);
+    if (loop && (page <= 0 || page >= banners.length + 1)) {
+      page = page <= 0 ? banners.length : 1;
+      correcting.current = true;
+      scroller.current?.scrollTo({x: page * track, animated: false});
+      correcting.current = false;
+    }
+    const visual = loop
+      ? Math.min(banners.length - 1, Math.max(0, page - 1))
+      : Math.min(banners.length - 1, Math.max(0, page));
+    indexRef.current = visual;
+    setIndex(visual);
+    if (dragging.current) {
+      dragging.current = false;
+      setCycle(value => value + 1);
+    }
+  };
+
+  const showBanner = (next: number) => {
+    if (track <= 0) return;
+    dragging.current = false;
+    indexRef.current = next;
+    setIndex(next);
+    const page = loop ? next + 1 : next;
+    scroller.current?.scrollTo({x: page * track, animated: true});
+    setCycle(value => value + 1);
+  };
+
+  return (
+    <View
+      onLayout={event => {
+        const next = Math.round(event.nativeEvent.layout.width);
+        setTrack(current => (current === next ? current : next));
+      }}
+    >
+      {track > 0 ? (
+        <ScrollView
+          ref={scroller}
+          horizontal
+          nestedScrollEnabled
+          pagingEnabled
+          bounces={loop}
+          directionalLockEnabled
+          disableIntervalMomentum
+          decelerationRate="fast"
+          snapToInterval={track}
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={loop}
+          contentOffset={{x: loop ? track : 0, y: 0}}
+          onScrollBeginDrag={() => {
+            dragging.current = true;
+          }}
+          onScrollEndDrag={event => {
+            const speed = Math.abs(event.nativeEvent.velocity?.x ?? 0);
+            if (speed < 0.05) settlePage(event);
+          }}
+          onMomentumScrollEnd={settlePage}
+          accessibilityLabel="Featured banners"
+        >
+          {slides.map((banner, slideIndex) => (
+            <BannerSlide
+              key={`${banner.id}-${slideIndex}`}
+              banner={banner}
+              width={track}
+              onOpen={onOpen}
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.heroPlaceholder} />
+      )}
+      {loop ? (
+        <View style={styles.dots} accessibilityRole="tablist">
+          {banners.map((banner, dotIndex) => (
+            <Pressable
+              key={banner.id}
+              accessibilityRole="tab"
+              accessibilityLabel={`Show banner ${dotIndex + 1} of ${banners.length}`}
+              accessibilityState={{selected: index === dotIndex}}
+              hitSlop={8}
+              onPress={() => showBanner(dotIndex)}
+              style={index === dotIndex ? styles.dotOn : styles.dot}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function BannerSlide({
+  banner,
+  width,
+  onOpen,
+}: {
+  banner: HomeBanner;
+  width: number;
+  onOpen: (banner: HomeBanner) => void;
+}) {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [banner.imageUrl]);
+  const actionable = Boolean(banner.imageUrl) && !imageFailed && Boolean(banner.targetId || banner.targetKind);
+  const open = () => onOpen(banner);
+
+  return (
+    <View style={{width}}>
+      <Pressable
+        accessibilityRole={actionable ? 'imagebutton' : 'image'}
+        accessibilityLabel={banner.altText || 'Promotional banner'}
+        accessibilityState={{disabled: !actionable}}
+        disabled={!actionable}
+        onPress={open}
+        style={({pressed}) => [pressed && actionable && styles.pressed]}
+      >
+        <View style={styles.marketingBanner}>
+          {banner.imageUrl && !imageFailed ? (
+            <Image
+              source={{uri: banner.imageUrl}}
+              style={styles.bannerPhoto}
+              resizeMode="cover"
+              onError={() => setImageFailed(true)}
+              accessibilityIgnoresInvertColors
+            />
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
+  );
 }
 
 export function HomeScreen() {
@@ -76,9 +266,8 @@ export function HomeScreen() {
   const liveRef = React.useRef<ScrollViewInstance>(null);
   const bannerWidth = Math.max(288, Math.min(width, 760) - space.pageX * 2);
   const continuing = homeQuery.data?.continueLearning ?? [];
-  const sections = homeQuery.data?.sections.slice(0, 6) ?? [];
   const featuredCourses = homeQuery.data?.featuredCourses ?? [];
-  const primaryBanner = homeQuery.data?.banners[0];
+  const banners = homeQuery.data?.banners ?? [];
 
   React.useEffect(() => {
     if (activeLive >= liveClasses.length) setActiveLive(0);
@@ -143,39 +332,13 @@ export function HomeScreen() {
           onPress={() => navigation.navigate('Search')}
         />
 
-        {primaryBanner ? (
-          <Gradient
-            colors={gradients.banner}
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 1}}
-            style={styles.marketingBanner}
-          >
-            <View style={styles.marketingCopy}>
-              <AppText weight="900" size={19} color="#fff" numberOfLines={2}>
-                {primaryBanner.title}
-              </AppText>
-              {primaryBanner.subtitle ? (
-                <AppText size={11} color="rgba(255,255,255,0.86)" numberOfLines={2}>
-                  {primaryBanner.subtitle}
-                </AppText>
-              ) : null}
-            </View>
-            {primaryBanner.targetId ? (
-              <ClayButton
-                label={primaryBanner.ctaLabel || 'Open'}
-                tone="orange"
-                compact
-                icon="chev"
-                onPress={() =>
-                  openPublishedTarget(
-                    navigation,
-                    primaryBanner.targetKind,
-                    primaryBanner.targetId,
-                  )
-                }
-              />
-            ) : null}
-          </Gradient>
+        {banners.length ? (
+          <AdminBannerCarousel
+            banners={banners}
+            onOpen={banner =>
+              openPublishedTarget(navigation, banner.targetKind, banner.targetId)
+            }
+          />
         ) : null}
 
         <View style={styles.row}>
@@ -301,7 +464,7 @@ export function HomeScreen() {
                         icon="chev"
                         disabled={item.status === 'cancelled'}
                         style={styles.liveButton}
-                        onPress={showLearnerUnavailable}
+                        onPress={() => navigation.navigate('LiveRoom', {liveClassId: item.id})}
                       />
                     </View>
                     <View style={styles.bvisual}>
@@ -319,7 +482,7 @@ export function HomeScreen() {
                         accessibilityLabel={`${liveActionLabel(item)}: ${
                           item.title
                         }`}
-                        onPress={showLearnerUnavailable}
+                        onPress={() => navigation.navigate('LiveRoom', {liveClassId: item.id})}
                         style={({ pressed }) => [
                           styles.playover,
                           pressed && styles.pressed,
@@ -352,38 +515,27 @@ export function HomeScreen() {
           <LoadingBlock />
         ) : null}
 
-        <View style={styles.shead}>
-          <AppText weight="800" size={16.5} color={colors.navy}>
-            Explore Sections
-          </AppText>
+        <View style={styles.exploreHead}>
+          <View style={styles.exploreTitles}>
+            <AppText weight="800" size={16.5} color={colors.navy}>
+              Explore
+            </AppText>
+            <AppText size={11.5} color={colors.text2}>
+              Six ways to learn on RACI
+            </AppText>
+          </View>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="See all explore options"
             hitSlop={8}
             onPress={() => navigation.navigate('ExploreSections')}
           >
             <AppText weight="700" size={11.5} color={colors.primary}>
-              See all {homeQuery.data?.sections.length ?? 0} &gt;
+              See all &gt;
             </AppText>
           </Pressable>
         </View>
-        <View style={styles.grid}>
-          {sections.map(item => (
-            <ExploreTile
-              key={item.id}
-              title={item.title}
-              icon={sectionIcon(item)}
-              clay={item.clay}
-              color={item.iconColor || colors.primary}
-              onPress={() =>
-                openPublishedTarget(
-                  navigation,
-                  item.targetKind ?? item.kind,
-                  item.targetId ?? item.id,
-                )
-              }
-            />
-          ))}
-        </View>
+        <ExploreHomeGrid onOpen={option => option.open(navigation)} />
 
         {featuredCourses.length ? (
           <View style={styles.featured}>
@@ -524,16 +676,16 @@ const styles = createThemedStyles({
     gap: 14,
   },
   greetingSub: { marginTop: 6 },
+  heroPlaceholder: {height: 128},
   marketingBanner: {
-    minHeight: 118,
+    height: 148,
     borderRadius: 22,
-    padding: 16,
-    gap: 12,
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     overflow: 'hidden',
+    backgroundColor: '#E8EEF8',
+    boxShadow:
+      '0 18px 30px -18px rgba(13,71,161,0.72), inset 0 1px 0 rgba(255,255,255,0.22)',
   },
-  marketingCopy: {gap: 6, maxWidth: 440},
+  bannerPhoto: {width: '100%', height: '100%'},
   row: { flexDirection: 'row', gap: 10 },
   tog: {
     flex: 1,
@@ -640,7 +792,13 @@ const styles = createThemedStyles({
     justifyContent: 'space-between',
     alignItems: 'baseline',
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
+  exploreHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  exploreTitles: {flex: 1, minWidth: 0, gap: 3},
   clcard: {
     flexDirection: 'row',
     alignItems: 'center',

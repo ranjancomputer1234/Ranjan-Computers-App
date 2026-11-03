@@ -1,22 +1,33 @@
-import {http, tokenStore} from './http';
+import {http, isAppError, tokenStore} from './http';
 import {appConfig} from '../config';
 import {learnerDeviceIdentity} from '../installation';
 import {assertOfflineGrant, offlineFiles} from '../offlineFiles';
-import type {Repositories} from '../repositories';
+import type {CatalogQuery, Repositories} from '../repositories';
 import {getAccountScoped, setAccountScoped} from '../storage';
 import type {
   AccessDecision,
+  Attempt,
+  AwarenessTopic,
   Bookmark,
   CatalogItem,
   ClayVariantName,
   Course,
   DownloadItem,
   Enrollment,
+  Exam,
+  Fact,
+  InterviewQuestion,
   IssuedDocument,
   LearnerProfile,
   Lesson,
+  LiveClass,
+  NewsArticle,
   Page,
+  PricingFilter,
+  Question,
   SessionTokens,
+  TestDefinition,
+  TestResult,
 } from '../types';
 import type {DownloadAuthorization} from '../offlineFiles';
 
@@ -98,6 +109,7 @@ type ApiBanner = {
   subtitle?: string | null;
   ctaLabel?: string | null;
   imageUrl?: string | null;
+  altText?: string | null;
   themeKey?: string | null;
   targetKind?: string | null;
   targetRef?: string | null;
@@ -218,6 +230,21 @@ async function post<T>(url: string, body?: object): Promise<T> {
 async function patch<T>(url: string, body?: object): Promise<T> {
   const response = await http.patch<T>(url, body);
   return response.data;
+}
+
+async function put<T>(url: string, body?: object): Promise<T> {
+  const response = await http.put<T>(url, body);
+  return response.data;
+}
+
+/** Missing learner routes are not published yet. Lists stay empty instead of failing the screen. */
+async function getOptional<T>(url: string, params?: object): Promise<T | undefined> {
+  try {
+    return await get<T>(url, params);
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) return undefined;
+    throw error;
+  }
 }
 
 function unavailable<T>(feature: string): Promise<T> {
@@ -358,6 +385,7 @@ function toSection(section: ApiSection): CatalogItem {
     subtitle: section.description || undefined,
     kind,
     pricing: section.pricingFilter === 'paid' ? 'paid' : 'free',
+    pricingFilter: section.pricingFilter === 'free' || section.pricingFilter === 'paid' ? section.pricingFilter : 'all',
     clay,
     icon: iconKey,
     imageUrl: section.imageUrl || undefined,
@@ -388,6 +416,400 @@ function toDocument(doc: ApiDocument, learnerName: string): IssuedDocument {
     verified: doc.status === 'issued',
     issuedAt: doc.issuedAt || undefined,
   };
+}
+
+const OPEN_ACCESS: AccessDecision = {state: 'granted', canPreview: true, canDownload: false};
+const LIVE_STATUSES = new Set<LiveClass['status']>([
+  'scheduled', 'starting', 'live', 'reconnecting', 'ended', 'cancelled',
+]);
+
+function asRows(payload: unknown): Record<string, unknown>[] {
+  const list = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === 'object'
+      ? (payload as {items?: unknown; data?: unknown; results?: unknown}).items
+        ?? (payload as {data?: unknown}).data
+        ?? (payload as {results?: unknown}).results
+      : undefined;
+  return Array.isArray(list) ? list.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object') : [];
+}
+
+function pageOf<T>(payload: unknown, map: (row: Record<string, unknown>) => T): Page<T> {
+  const items = asRows(payload).map(map);
+  const meta = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? payload as {nextCursor?: string | null; total?: number}
+    : undefined;
+  return {items, nextCursor: meta?.nextCursor ?? null, total: meta?.total ?? items.length};
+}
+
+function text(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function decision(value: unknown, mode?: string): AccessDecision {
+  if (!value || typeof value !== 'object') {
+    return mode === 'free' || mode === undefined ? OPEN_ACCESS : {...EMPTY_ACCESS, reason: 'purchase_required'};
+  }
+  const row = value as ApiAccess & AccessDecision;
+  if (row.state === 'granted' || row.state === 'denied' || row.state === 'unknown') {
+    return {
+      state: row.state,
+      reason: row.reason,
+      productId: row.productId,
+      expiresAt: row.expiresAt,
+      canPreview: Boolean(row.canPreview),
+      canDownload: Boolean(row.canDownload),
+    };
+  }
+  if (typeof row.granted === 'boolean') return toAccess(row, mode as ApiCourse['commercialMode']);
+  return OPEN_ACCESS;
+}
+
+function pricingOf(row: Record<string, unknown>): 'free' | 'paid' {
+  return row.pricing === 'paid' || row.commercialMode === 'paid' ? 'paid' : 'free';
+}
+
+function toExam(row: Record<string, unknown>): Exam {
+  return {
+    id: String(row.id),
+    title: text(row.title) ?? 'Exam',
+    subtitle: text(row.summary) ?? text(row.subtitle) ?? text(row.description),
+    kind: 'exam',
+    pricing: pricingOf(row),
+    clay: 'purple',
+    icon: text(row.iconKey) ?? 'target',
+    imageUrl: text(row.imageUrl) ?? text(row.coverImageUrl),
+    access: decision(row.access, text(row.commercialMode)),
+    description: text(row.description) ?? text(row.summary),
+    relatedExams: Array.isArray(row.relatedExams) ? row.relatedExams.map(String) : undefined,
+    testCount: typeof row.testCount === 'number' ? row.testCount : undefined,
+    learnerCount: typeof row.learnerCount === 'number' ? row.learnerCount : undefined,
+  };
+}
+
+function toTest(row: Record<string, unknown>): TestDefinition {
+  const minutes = typeof row.durationMinutes === 'number' ? row.durationMinutes : undefined;
+  return {
+    id: String(row.id),
+    examId: text(row.examId),
+    title: text(row.title) ?? 'Test',
+    questionCount: typeof row.questionCount === 'number' ? row.questionCount : Array.isArray(row.questions) ? row.questions.length : 0,
+    durationSeconds: typeof row.durationSeconds === 'number' ? row.durationSeconds : minutes ? minutes * 60 : 0,
+    attemptCount: typeof row.attemptCount === 'number' ? row.attemptCount : undefined,
+    pricing: pricingOf(row),
+    marking: text(row.marking),
+    negativeMarking: text(row.negativeMarking),
+    passThreshold: typeof row.passThreshold === 'number' ? row.passThreshold : undefined,
+    attemptLimit: typeof row.attemptLimit === 'number' ? row.attemptLimit : undefined,
+    resumePolicy: text(row.resumePolicy),
+    solutionPolicy: text(row.solutionPolicy),
+    mode: row.mode === 'formal' ? 'formal' : 'practice',
+    access: decision(row.access, text(row.commercialMode)),
+  };
+}
+
+function toQuestion(row: Record<string, unknown>): Question {
+  const options = Array.isArray(row.options) ? row.options : [];
+  return {
+    id: String(row.id),
+    prompt: text(row.prompt) ?? text(row.question) ?? '',
+    helper: text(row.helper),
+    category: text(row.category),
+    options: options.filter((option): option is Record<string, unknown> => Boolean(option) && typeof option === 'object').map(option => ({
+      id: String(option.id),
+      label: text(option.label) ?? text(option.text) ?? '',
+    })),
+    revealAnswer: typeof row.revealAnswer === 'boolean' ? row.revealAnswer : undefined,
+    correctOptionId: text(row.correctOptionId),
+  };
+}
+
+function toAttempt(row: Record<string, unknown>): Attempt & {questions: Question[]} {
+  const answers = row.answers && typeof row.answers === 'object' && !Array.isArray(row.answers)
+    ? Object.fromEntries(Object.entries(row.answers as Record<string, unknown>).map(([key, value]) => [key, String(value)]))
+    : {};
+  const status = row.status;
+  return {
+    id: String(row.id),
+    testId: text(row.testId) ?? '',
+    status: status === 'submitted' || status === 'scored' || status === 'expired' || status === 'abandoned' ? status : 'in_progress',
+    expiresAt: text(row.expiresAt),
+    revision: typeof row.revision === 'number' ? row.revision : 0,
+    currentIndex: typeof row.currentIndex === 'number' ? row.currentIndex : 0,
+    answers,
+    startedAt: text(row.startedAt) ?? new Date().toISOString(),
+    questions: asRows(row.questions).map(toQuestion),
+  };
+}
+
+function toResult(row: Record<string, unknown>): TestResult {
+  const questions = asRows(row.questions).map(question => {
+    const status: 'correct' | 'wrong' | 'skipped' =
+      question.status === 'correct' || question.status === 'wrong' ? question.status : 'skipped';
+    return {
+      id: String(question.id),
+      prompt: text(question.prompt) ?? '',
+      status,
+      selectedOptionId: text(question.selectedOptionId),
+      selectedLabel: text(question.selectedLabel),
+      correctLabel: text(question.correctLabel),
+      explanation: text(question.explanation),
+      section: text(question.section),
+    };
+  });
+  return {
+    attemptId: text(row.attemptId) ?? String(row.id ?? ''),
+    testId: text(row.testId) ?? '',
+    testTitle: text(row.testTitle) ?? text(row.title),
+    score: typeof row.score === 'number' ? row.score : 0,
+    maxScore: typeof row.maxScore === 'number' ? row.maxScore : 0,
+    percent: typeof row.percent === 'number' ? row.percent : 0,
+    rank: typeof row.rank === 'number' ? row.rank : undefined,
+    rankTotal: typeof row.rankTotal === 'number' ? row.rankTotal : undefined,
+    accuracy: typeof row.accuracy === 'number' ? row.accuracy : undefined,
+    timeTakenSeconds: typeof row.timeTakenSeconds === 'number' ? row.timeTakenSeconds : undefined,
+    questions,
+    solutionsAvailable: Boolean(row.solutionsAvailable),
+  };
+}
+
+function toArticle(row: Record<string, unknown>): NewsArticle {
+  const body = Array.isArray(row.body) ? row.body.map(part => String(part)) : text(row.body) ? [String(row.body)] : undefined;
+  return {
+    id: String(row.id),
+    categoryId: text(row.categoryId) ?? text(row.category) ?? 'news',
+    title: text(row.title) ?? 'News',
+    byline: text(row.byline),
+    publishedAt: text(row.publishedAt) ?? text(row.createdAt) ?? new Date(0).toISOString(),
+    readingMinutes: typeof row.readingMinutes === 'number' ? row.readingMinutes : typeof row.readingTime === 'number' ? row.readingTime : undefined,
+    excerpt: text(row.excerpt) ?? text(row.summary),
+    body,
+    highlights: Array.isArray(row.highlights) ? row.highlights.map(String) : undefined,
+    tags: Array.isArray(row.tags) ? row.tags.map(String) : undefined,
+    featured: Boolean(row.featured),
+    imageUrl: text(row.imageUrl) ?? text(row.heroImageUrl),
+    access: decision(row.access, text(row.commercialMode)),
+    imageTint: 'orange',
+  };
+}
+
+function toTopic(row: Record<string, unknown>): AwarenessTopic {
+  const schema = row.schema === 'list' || row.schema === 'article' ? row.schema : 'pairs';
+  return {
+    id: String(row.id),
+    title: text(row.title) ?? 'Topic',
+    subtitle: text(row.summary) ?? text(row.subtitle),
+    kind: 'topic',
+    pricing: pricingOf(row),
+    clay: 'lavender',
+    icon: text(row.iconKey) ?? 'book',
+    imageUrl: text(row.imageUrl),
+    access: decision(row.access, text(row.commercialMode)),
+    schema,
+    summaryChips: Array.isArray(row.summaryChips) ? row.summaryChips.map(String) : undefined,
+    entries: asRows(row.entries).map(entry => ({
+      id: String(entry.id),
+      label: text(entry.label) ?? '',
+      value: text(entry.value) ?? text(entry.text) ?? '',
+      group: text(entry.group),
+      iconColor: text(entry.iconColor),
+    })),
+  };
+}
+
+function toFact(row: Record<string, unknown>): Fact {
+  return {
+    id: String(row.id),
+    categoryId: text(row.categoryId) ?? 'facts',
+    text: text(row.text) ?? text(row.title) ?? '',
+    explanation: text(row.explanation),
+    reactionCount: typeof row.reactionCount === 'number' ? row.reactionCount : 0,
+    reacted: Boolean(row.reacted),
+    bookmarked: Boolean(row.bookmarked),
+    featured: Boolean(row.featured),
+    quizId: text(row.quizId) ?? text(row.relatedQuizId),
+  };
+}
+
+function toInterviewQuestion(row: Record<string, unknown>): InterviewQuestion {
+  return {
+    id: String(row.id),
+    categoryId: text(row.categoryId) ?? 'interview',
+    prompt: text(row.prompt) ?? text(row.question) ?? text(row.title) ?? '',
+    modelAnswer: text(row.modelAnswer) ?? text(row.answer),
+  };
+}
+
+function toLiveClass(row: Record<string, unknown>): LiveClass {
+  const status = LIVE_STATUSES.has(row.status as LiveClass['status']) ? row.status as LiveClass['status'] : 'scheduled';
+  const instructor = row.instructor && typeof row.instructor === 'object' ? text((row.instructor as {name?: string}).name) : undefined;
+  return {
+    id: String(row.id),
+    title: text(row.title) ?? 'Live class',
+    startsAt: text(row.startsAt) ?? text(row.startAt) ?? new Date().toISOString(),
+    endsAt: text(row.endsAt) ?? text(row.endAt) ?? text(row.startsAt) ?? new Date().toISOString(),
+    instructorName: text(row.instructorName) ?? instructor ?? 'Instructor',
+    status,
+    batch: text(row.batch) ?? text(row.batchName),
+    durationLabel: text(row.durationLabel),
+    viewerCount: typeof row.viewerCount === 'number' ? row.viewerCount : undefined,
+    recordingAvailable: Boolean(row.recordingAvailable),
+    reminderSet: Boolean(row.reminderSet),
+  };
+}
+
+function catalogCard(row: Record<string, unknown>, kind: CatalogItem['kind'], icon: string, clay: ClayVariantName): CatalogItem {
+  return {
+    id: String(row.id),
+    title: text(row.title) ?? text(row.name) ?? 'Untitled',
+    subtitle: text(row.summary) ?? text(row.subtitle) ?? text(row.description),
+    kind,
+    pricing: pricingOf(row),
+    clay,
+    icon: text(row.iconKey) ?? icon,
+    imageUrl: text(row.imageUrl) ?? text(row.coverImageUrl),
+    access: decision(row.access, text(row.commercialMode)),
+  };
+}
+
+function filterCatalog(items: CatalogItem[], query: {search?: string; pricing?: PricingFilter}): CatalogItem[] {
+  let next = items;
+  const term = query.search?.trim().toLocaleLowerCase();
+  if (term) next = next.filter(item => `${item.title} ${item.subtitle ?? ''}`.toLocaleLowerCase().includes(term));
+  if (query.pricing && query.pricing !== 'all') next = next.filter(item => item.pricing === query.pricing);
+  return next;
+}
+
+/** Query string the six explore catalogues send. See docs/handover. */
+function catalogParams(query: Pick<CatalogQuery, 'search' | 'pricing' | 'cursor'>) {
+  return {
+    ...(query.search?.trim() ? {search: query.search.trim()} : {}),
+    ...(query.pricing && query.pricing !== 'all' ? {pricing: query.pricing} : {}),
+    ...(query.cursor ? {cursor: query.cursor} : {}),
+  };
+}
+
+function asCatalogPage<T>(
+  payload: unknown,
+  map: (row: Record<string, unknown>) => T,
+): Page<T> | undefined {
+  if (Array.isArray(payload)) return pageOf(payload, map);
+  if (payload && typeof payload === 'object') {
+    const record = payload as {items?: unknown; data?: unknown; results?: unknown};
+    if (Array.isArray(record.items) || Array.isArray(record.data) || Array.isArray(record.results)) {
+      return pageOf(payload, map);
+    }
+  }
+  return undefined;
+}
+
+function finishCatalogPage(page: Page<CatalogItem>, query: CatalogQuery): Page<CatalogItem> {
+  if (page.nextCursor) return page;
+  const items = filterCatalog(page.items, query);
+  return {items, nextCursor: null, total: items.length};
+}
+
+function courseFromRow(row: Record<string, unknown>): Course {
+  return toCourse(row as unknown as ApiCourse);
+}
+
+async function listCourses(query: CatalogQuery): Promise<Page<CatalogItem>> {
+  const payload = await getOptional<unknown>('/courses', catalogParams(query));
+  const page = payload ? asCatalogPage(payload, courseFromRow) : undefined;
+  if (page) return page;
+
+  // GET /courses is not on the learner API yet. Until the handover list exists,
+  // show featured courses from /home, or search hits when the learner typed a query.
+  let items: Course[];
+  if (query.search?.trim()) {
+    const result = await get<ApiSearch>('/search', {q: query.search.trim()});
+    items = result.courses.map(toCourse);
+  } else {
+    const home = await get<ApiHome>('/home');
+    items = (home.featuredCourses ?? []).map(toCourse);
+  }
+  if (query.pricing && query.pricing !== 'all') {
+    items = items.filter(item => item.pricing === query.pricing);
+  }
+  return emptyPage(items);
+}
+
+async function listPublishedKind(
+  kind: 'exam' | 'news' | 'topic' | 'fact' | 'interview',
+  query: CatalogQuery,
+): Promise<Page<CatalogItem>> {
+  const params = catalogParams(query);
+  if (kind === 'exam') {
+    const payload = await getOptional<unknown>('/exams', params);
+    return payload ? asCatalogPage(payload, toExam) ?? emptyPage() : emptyPage();
+  }
+  if (kind === 'news') {
+    const categories = await getOptional<unknown>('/news/categories', params);
+    const page = categories
+      ? asCatalogPage(categories, row => catalogCard(row, 'news', 'news', 'orange'))
+      : undefined;
+    if (page) return page;
+    const articles = await getOptional<unknown>('/news', params);
+    const seen = new Set<string>();
+    const derived = articles
+      ? asRows(articles).flatMap(row => {
+          const id = text(row.categoryId) ?? text(row.category);
+          if (!id || seen.has(id)) return [];
+          seen.add(id);
+          return [catalogCard({...row, id, title: text(row.categoryTitle) ?? id}, 'news', 'news', 'orange')];
+        })
+      : [];
+    return emptyPage(derived);
+  }
+  if (kind === 'topic') {
+    const payload = await getOptional<unknown>('/awareness/topics', params);
+    return payload
+      ? asCatalogPage(payload, row => catalogCard(row, 'topic', 'book', 'lavender')) ?? emptyPage()
+      : emptyPage();
+  }
+  if (kind === 'fact') {
+    const categories = await getOptional<unknown>('/facts/categories', params);
+    const page = categories
+      ? asCatalogPage(categories, row => catalogCard(row, 'fact', 'bulb', 'green'))
+      : undefined;
+    if (page) return page;
+    const facts = await getOptional<unknown>('/facts', params);
+    const seen = new Set<string>();
+    const derived = facts
+      ? asRows(facts).flatMap(row => {
+          const id = text(row.categoryId);
+          if (!id || seen.has(id)) return [];
+          seen.add(id);
+          return [catalogCard({id, title: text(row.categoryTitle) ?? id}, 'fact', 'bulb', 'green')];
+        })
+      : [];
+    return emptyPage(derived);
+  }
+  const categories = await getOptional<unknown>('/interview/categories', params);
+  const page = categories
+    ? asCatalogPage(categories, row => catalogCard(row, 'interviewCategory', 'users', 'mint'))
+    : undefined;
+  if (page) return page;
+  const questions = await getOptional<unknown>('/interview/questions', params);
+  const seen = new Set<string>();
+  const derived = questions
+    ? asRows(questions).flatMap(row => {
+        const id = text(row.categoryId);
+        if (!id || seen.has(id)) return [];
+        seen.add(id);
+        return [catalogCard({id, title: text(row.categoryTitle) ?? id}, 'interviewCategory', 'users', 'mint')];
+      })
+    : [];
+  return emptyPage(derived);
+}
+
+async function publishedLiveClasses(fromIso?: string, toIso?: string): Promise<LiveClass[]> {
+  const now = Date.now();
+  const payload = await getOptional<unknown>('/live-classes', {
+    from: fromIso ?? new Date(now - 24 * 60 * 60 * 1000).toISOString(),
+    to: toIso ?? new Date(now + 14 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+  return payload ? asRows(payload).map(toLiveClass) : [];
 }
 
 export function createHttpRepositories(): Repositories {
@@ -445,22 +867,28 @@ export function createHttpRepositories(): Repositories {
     catalog: {
       home: async () => {
         const signedIn = Boolean(tokenStore.getAccessToken());
-        const home = await get<ApiHome>(signedIn ? '/home/me' : '/home');
+        const [home, liveClasses] = await Promise.all([
+          get<ApiHome>(signedIn ? '/home/me' : '/home'),
+          publishedLiveClasses().catch(() => [] as LiveClass[]),
+        ]);
         return {
           greetingName: undefined,
-          banners: home.banners.map(banner => ({
-            id: banner.id,
-            title: banner.title,
-            subtitle: banner.subtitle || undefined,
-            ctaLabel: banner.ctaLabel || undefined,
-            imageUrl: banner.imageUrl || undefined,
-            targetKind: banner.targetKind || undefined,
-            targetId: banner.targetRef || undefined,
-            themeKey: banner.themeKey || undefined,
-          })),
+          banners: home.banners.flatMap(banner => {
+            const imageUrl = banner.imageUrl || undefined;
+            if (!imageUrl) return [];
+            return [{
+              id: banner.id,
+              title: banner.title,
+              imageUrl,
+              altText: banner.altText || undefined,
+              targetKind: banner.targetKind || undefined,
+              targetId: banner.targetRef || undefined,
+              themeKey: banner.themeKey || undefined,
+            }];
+          }),
           sections: home.sections.map(toSection),
           featuredCourses: home.featuredCourses.map(toCourse),
-          liveClasses: [],
+          liveClasses,
           continueLearning: home.continuing.slice(0, 5).map(current => ({
             courseId: current.courseId,
             lessonId: current.lessonId,
@@ -472,33 +900,14 @@ export function createHttpRepositories(): Repositories {
         };
       },
       list: async query => {
-        let items: CatalogItem[];
-        if (query.kind === 'course') {
-          if (query.search?.trim()) {
-            const result = await get<ApiSearch>('/search', {q: query.search.trim()});
-            items = result.courses.map(toCourse);
-          } else {
-            const home = await get<ApiHome>('/home');
-            items = home.featuredCourses.map(toCourse);
-          }
-        } else {
-          const sections = await get<ApiSection[]>('/categories');
-          items = sections.map(toSection).filter(item => item.kind === query.kind);
-          if (query.search?.trim()) {
-            const term = query.search.trim().toLocaleLowerCase();
-            items = items.filter(item => `${item.title} ${item.subtitle ?? ''}`.toLocaleLowerCase().includes(term));
-          }
-        }
-        if (query.pricing && query.pricing !== 'all') {
-          items = items.filter(item => item.pricing === query.pricing);
-        }
-        return emptyPage(items);
+        if (query.kind === 'course') return listCourses(query);
+        return finishCatalogPage(await listPublishedKind(query.kind, query), query);
       },
       course: async id => {
         const path = tokenStore.getAccessToken() ? `/courses/${id}/access` : `/courses/${id}`;
         return toCourse(await get<ApiCourse>(path));
       },
-      exam: () => unavailable('Exam preparation'),
+      exam: async id => toExam(await get<Record<string, unknown>>(`/exams/${id}`)),
       search: async (q, type) => {
         if (!q.trim()) return emptyPage([]);
         if (type && type !== 'COURSE') return emptyPage([]);
@@ -607,34 +1016,66 @@ export function createHttpRepositories(): Repositories {
       submitProject: () => unavailable('Projects'),
     },
     assessments: {
-      tests: () => Promise.resolve([]),
-      test: () => unavailable('Learner tests'),
-      startAttempt: () => unavailable('Learner tests'),
-      attempt: () => unavailable('Learner tests'),
-      saveAnswer: () => unavailable('Learner tests'),
-      submit: () => unavailable('Learner tests'),
-      result: () => unavailable('Learner tests'),
-      history: () => Promise.resolve([]),
-      dailyPractice: () => unavailable('Daily practice'),
+      tests: async examId => {
+        const payload = await getOptional<unknown>('/tests', examId ? {examId} : undefined);
+        return payload ? asRows(payload).map(toTest) : [];
+      },
+      test: async id => toTest(await get<Record<string, unknown>>(`/tests/${id}`)),
+      startAttempt: async testId => toAttempt(await post<Record<string, unknown>>(`/tests/${testId}/attempts`)),
+      attempt: async id => toAttempt(await get<Record<string, unknown>>(`/attempts/${id}`)),
+      saveAnswer: (attemptId, questionId, optionId, revision) =>
+        put<{revision: number}>(`/attempts/${attemptId}/answers/${questionId}`, {optionId, revision}),
+      submit: async (attemptId, revision) => toResult(await post<Record<string, unknown>>(`/attempts/${attemptId}/submit`, {revision})),
+      result: async attemptId => toResult(await get<Record<string, unknown>>(`/attempts/${attemptId}/result`)),
+      history: async () => {
+        if (!tokenStore.getAccessToken()) return [];
+        const payload = await getOptional<unknown>('/me/attempts');
+        return payload ? asRows(payload).map(toResult) : [];
+      },
+      dailyPractice: kind => get<{testId: string}>('/practice/daily', {kind}),
     },
     content: {
-      news: () => Promise.resolve(emptyPage()),
-      article: () => unavailable('Learner news'),
-      topic: () => unavailable('General awareness'),
-      facts: () => Promise.resolve(emptyPage()),
-      fact: () => unavailable('Facts'),
-      reactFact: () => unavailable('Fact reactions'),
-      interviewQuestions: () => Promise.resolve([]),
-      interviewQuestion: () => unavailable('Interview preparation'),
+      news: async (categoryId, cursor) => {
+        const payload = await getOptional<unknown>('/news', {categoryId, cursor});
+        return payload ? pageOf(payload, toArticle) : emptyPage();
+      },
+      article: async id => toArticle(await get<Record<string, unknown>>(`/news/${id}`)),
+      topic: async id => toTopic(await get<Record<string, unknown>>(`/awareness/topics/${id}`)),
+      facts: async (categoryId, cursor) => {
+        const payload = await getOptional<unknown>('/facts', {categoryId, cursor});
+        return payload ? pageOf(payload, toFact) : emptyPage();
+      },
+      fact: async id => toFact(await get<Record<string, unknown>>(`/facts/${id}`)),
+      reactFact: async (id, reacted) => toFact(await put<Record<string, unknown>>(`/facts/${id}/reaction`, {reacted})),
+      interviewQuestions: async categoryId => {
+        const payload = await getOptional<unknown>('/interview/questions', categoryId ? {categoryId} : undefined);
+        return payload ? asRows(payload).map(toInterviewQuestion) : [];
+      },
+      interviewQuestion: async id => toInterviewQuestion(await get<Record<string, unknown>>(`/interview/questions/${id}`)),
     },
     live: {
-      schedule: () => Promise.resolve([]),
-      get: () => unavailable('Live classes'),
-      join: () => unavailable('Live classes'),
-      setHand: () => unavailable('Live classes'),
-      setReminder: () => unavailable('Live classes'),
-      sendChat: () => unavailable('Live chat'),
-      chatHistory: () => Promise.resolve([]),
+      schedule: (fromIso, toIso) => publishedLiveClasses(fromIso, toIso),
+      get: async id => toLiveClass(await get<Record<string, unknown>>(`/live-classes/${id}`)),
+      join: async id => {
+        const row = await post<{playbackUrl?: string; chatAvailable?: boolean; expiresAt?: string}>(`/live-classes/${id}/join`);
+        return {playbackUrl: row.playbackUrl, chatAvailable: Boolean(row.chatAvailable), expiresAt: row.expiresAt};
+      },
+      setHand: (id, raised) => put<{raised: boolean}>(`/live-classes/${id}/hand`, {raised}),
+      setReminder: (id, enabled) => put(`/live-classes/${id}/reminder`, {enabled}).then(() => undefined),
+      sendChat: (id, body, clientId) => post(`/live-classes/${id}/chat`, {body, clientId}),
+      chatHistory: async id => {
+        const payload = await getOptional<unknown>(`/live-classes/${id}/chat`);
+        return payload
+          ? asRows(payload).map(row => ({
+              id: String(row.id),
+              body: text(row.body) ?? '',
+              at: text(row.at) ?? text(row.createdAt) ?? new Date().toISOString(),
+              mine: Boolean(row.mine),
+              senderName: text(row.senderName),
+              faculty: Boolean(row.faculty),
+            }))
+          : [];
+      },
     },
     commerce: {
       restore: () => unavailable('Purchases'),

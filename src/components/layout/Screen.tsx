@@ -288,6 +288,7 @@ export function DetailHeader({
   onBookmark,
   onFilter,
   onCalendar,
+  calendarActive,
   onMore,
   onNotifications,
   unread,
@@ -301,6 +302,7 @@ export function DetailHeader({
   onBookmark?: () => void;
   onFilter?: () => void;
   onCalendar?: () => void;
+  calendarActive?: boolean;
   onMore?: () => void;
   onNotifications?: () => void;
   unread?: boolean;
@@ -373,6 +375,7 @@ export function DetailHeader({
             {onCalendar ? (
               <IconButton
                 icon="cal"
+                color={calendarActive ? theme.colors.primary : theme.colors.navy}
                 onPress={onCalendar}
                 accessibilityLabel="Calendar"
               />

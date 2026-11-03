@@ -14,17 +14,7 @@ import {useLiveSchedule} from '../../features/live/hooks/useLiveSchedule';
 import {openReminderSettings} from '../../features/settings/reminders';
 import {styles} from './styles';
 import {usePullRefreshFeedback} from '../../components/ui/AppRefreshControl';
-
-const dayKey = (value: Date | string) => {
-  const date = value instanceof Date ? value : new Date(value);
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-};
-
-const addDays = (value: Date, amount: number) => {
-  const next = new Date(value);
-  next.setDate(next.getDate() + amount);
-  return next;
-};
+import {ScheduleCalendarSheet, addDays, dateFromKey, dayKey, type DayMark} from './ScheduleCalendarSheet';
 
 const weekOfMonth = (date: Date) => {
   const firstDayOffset = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
@@ -50,20 +40,40 @@ export function LiveScheduleScreen() {
     },
   });
   const [selected, setSelected] = React.useState<string | null>(null);
+  const [anchorKey, setAnchorKey] = React.useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
   const featuredDate = React.useMemo(() => {
-    const featured = schedule.data?.find(item => item.status === 'live') ?? schedule.data?.[0];
+    const featured = schedule.data?.find(item => ['live', 'starting', 'reconnecting'].includes(item.status)) ?? schedule.data?.[0];
     return featured ? new Date(featured.startsAt) : new Date();
   }, [schedule.data]);
-  const selectedDate = React.useMemo(() => {
-    if (!selected) return featuredDate;
-    const found = Array.from({length: 5}, (_, index) => addDays(featuredDate, index - 2))
-      .find(date => dayKey(date) === selected);
-    return found ?? featuredDate;
-  }, [featuredDate, selected]);
-  const days = React.useMemo(
-    () => Array.from({length: 5}, (_, index) => addDays(featuredDate, index - 2)),
-    [featuredDate],
+  const selectedDate = selected ? dateFromKey(selected) : featuredDate;
+  const windowAnchor = React.useMemo(
+    () => (anchorKey ? dateFromKey(anchorKey) : featuredDate),
+    [anchorKey, featuredDate],
   );
+  const days = React.useMemo(
+    () => Array.from({length: 5}, (_, index) => addDays(windowAnchor, index - 2)),
+    [windowAnchor],
+  );
+  const dayMarks = React.useMemo(() => {
+    const marks = new Map<string, DayMark>();
+    for (const item of schedule.data ?? []) {
+      const key = dayKey(item.startsAt);
+      const current = marks.get(key) ?? {count: 0, live: false};
+      current.count += 1;
+      if (['live', 'starting', 'reconnecting'].includes(item.status)) current.live = true;
+      marks.set(key, current);
+    }
+    return marks;
+  }, [schedule.data]);
+  const nextClassKey = React.useMemo(() => {
+    const now = Date.now() - 60 * 60 * 1000;
+    const upcoming = (schedule.data ?? [])
+      .filter(item => item.status !== 'cancelled' && item.status !== 'ended' && new Date(item.startsAt).getTime() >= now)
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+    const next = upcoming.find(item => ['live', 'starting', 'reconnecting'].includes(item.status)) ?? upcoming[0];
+    return next ? dayKey(next.startsAt) : null;
+  }, [schedule.data]);
   const activeKey = selected ?? dayKey(featuredDate);
   const classes = schedule.data?.filter(item => dayKey(item.startsAt) === activeKey) ?? [];
   const liveCount = classes.filter(item => ['live', 'starting', 'reconnecting'].includes(item.status)).length;
@@ -93,26 +103,52 @@ export function LiveScheduleScreen() {
       <DetailHeader
         title="Live Classes"
         subtitle={headerSubtitle}
-        onCalendar={() => setSelected(dayKey(featuredDate))}
+        onCalendar={() => setCalendarOpen(true)}
+        calendarActive={calendarOpen || selected !== null}
         onNotifications={showLearnerUnavailable}
         unread
+      />
+      <ScheduleCalendarSheet
+        visible={calendarOpen}
+        selectedKey={activeKey}
+        featuredKey={nextClassKey}
+        marks={dayMarks}
+        onClose={() => setCalendarOpen(false)}
+        onSelect={key => {
+          setSelected(key);
+          setAnchorKey(key);
+          setCalendarOpen(false);
+        }}
       />
       <ScrollView {...pullRefresh.scrollProps} contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
         <View style={styles.dayChips}>
           {days.map(date => {
-            const active = dayKey(date) === activeKey;
+            const key = dayKey(date);
+            const active = key === activeKey;
+            const mark = dayMarks.get(key);
             return (
               <Pressable
-                key={dayKey(date)}
+                key={key}
                 accessibilityRole="button"
                 accessibilityState={{selected: active}}
                 accessibilityLabel={date.toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric'})}
-                onPress={() => setSelected(dayKey(date))}
+                onPress={() => {
+                  setSelected(key);
+                  setAnchorKey(current => current ?? dayKey(featuredDate));
+                }}
                 style={[styles.dayChip, active && styles.dayChipOn]}>
                 <AppText weight="600" size={8} color={active ? 'rgba(255,255,255,0.85)' : colors.text3} style={{letterSpacing: 0.8}}>
                   {date.toLocaleDateString('en-IN', {weekday: 'short'}).toUpperCase()}
                 </AppText>
                 <AppText weight="800" size={10} color={active ? '#fff' : colors.text2}>{date.getDate()}</AppText>
+                <View
+                  style={{
+                    width: 4,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: mark ? (active ? '#fff' : mark.live ? colors.error : colors.primary) : 'transparent',
+                  }}
+                />
               </Pressable>
             );
           })}

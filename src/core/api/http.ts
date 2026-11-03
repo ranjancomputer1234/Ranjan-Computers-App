@@ -161,6 +161,15 @@ export function requiresLearnerAuth(method: string | undefined, url?: string): b
   if (verb === 'post' && /^\/courses\/[^/]+\/enroll$/.test(path)) return true;
   if (verb === 'post' && /^\/lessons\/[^/]+\/(?:progress|complete)$/.test(path)) return true;
   if (verb === 'post' && /^\/resources\/[^/]+\/download-authorization$/.test(path)) return true;
+  if (verb === 'get' && (path === '/me/attempts' || path === '/practice/daily')) return true;
+  if (verb === 'get' && /^\/attempts\/[^/]+(?:\/result)?$/.test(path)) return true;
+  if (verb === 'post' && /^\/tests\/[^/]+\/attempts$/.test(path)) return true;
+  if (verb === 'put' && /^\/attempts\/[^/]+\/answers\/[^/]+$/.test(path)) return true;
+  if (verb === 'post' && /^\/attempts\/[^/]+\/submit$/.test(path)) return true;
+  if (verb === 'put' && /^\/facts\/[^/]+\/reaction$/.test(path)) return true;
+  if (verb === 'post' && /^\/live-classes\/[^/]+\/(?:join|chat)$/.test(path)) return true;
+  if (verb === 'put' && /^\/live-classes\/[^/]+\/(?:hand|reminder)$/.test(path)) return true;
+  if (verb === 'get' && /^\/live-classes\/[^/]+\/chat$/.test(path)) return true;
   return false;
 }
 
