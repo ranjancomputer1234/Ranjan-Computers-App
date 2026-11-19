@@ -8,7 +8,6 @@ import {AppText, ClayButton, SearchInput} from '../../components/ui';
 import {ClayCard} from '../../components/ui/Clay';
 import {Gradient} from '../../components/ui/Gradient';
 import {exploreOptions} from '../../features/catalog/exploreOptions';
-import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
 import {translateUiString} from '../../features/settings/uiTranslations';
 import type {HomeNav} from '../../navigation/types';
 import {colors, createThemedStyles, gradients, space} from '../../theme';
@@ -35,7 +34,7 @@ export function ExploreSectionsScreen() {
       <BrandedHeader
         showBack
         onBack={() => navigation.goBack()}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
       <ScrollView
         contentContainerStyle={styles.page}

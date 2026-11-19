@@ -32,8 +32,9 @@ import { Icon } from '../../assets/icons';
 import type { HomeNav } from '../../navigation/types';
 import type { HomeDashboard, LiveClass } from '../../core/types';
 import { ClayCard } from '../../components/ui/Clay';
-import { openPublishedTarget, showLearnerUnavailable } from '../../features/catalog/openPublishedTarget';
+import { openPublishedTarget } from '../../features/catalog/openPublishedTarget';
 import { useHomeDashboard } from '../../features/home/hooks/useHomeDashboard';
+import { useEnrolledCourseIds } from '../../features/catalog/useEnrolledCourseIds';
 
 function liveTimeLabel(item: LiveClass) {
   if (item.status === 'live') return 'Live now';
@@ -267,6 +268,7 @@ export function HomeScreen() {
   const bannerWidth = Math.max(288, Math.min(width, 760) - space.pageX * 2);
   const continuing = homeQuery.data?.continueLearning ?? [];
   const featuredCourses = homeQuery.data?.featuredCourses ?? [];
+  const { ids: enrolledIds } = useEnrolledCourseIds();
   const banners = homeQuery.data?.banners ?? [];
 
   React.useEffect(() => {
@@ -310,7 +312,7 @@ export function HomeScreen() {
     <Screen padded={false} pullGestureHandlers={pullRefresh.gestureHandlers}>
       <BrandedHeader
         unread={(homeQuery.data?.unreadNotifications ?? 0) > 0}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
         onProfile={() => navigation.getParent()?.navigate('ProfileTab')}
       />
       <ScrollView
@@ -545,7 +547,7 @@ export function HomeScreen() {
             {featuredCourses.map(course => (
               <CourseCatalogCard
                 key={course.id}
-                item={course}
+                item={{...course, enrolled: Boolean(course.enrolled) || enrolledIds.has(course.id)}}
                 onPress={() => navigation.navigate('CourseDetail', {courseId: course.id})}
               />
             ))}

@@ -144,6 +144,11 @@ export function isAppError(value: unknown): value is AppError {
   );
 }
 
+/** Learner routes that are not deployed yet reject with this code. */
+export function isFeatureUnavailable(value: unknown): boolean {
+  return isAppError(value) && value.code === 'feature_unavailable';
+}
+
 function pathOnly(url?: string): string {
   return (url ?? '').split('?')[0];
 }
@@ -170,6 +175,11 @@ export function requiresLearnerAuth(method: string | undefined, url?: string): b
   if (verb === 'post' && /^\/live-classes\/[^/]+\/(?:join|chat)$/.test(path)) return true;
   if (verb === 'put' && /^\/live-classes\/[^/]+\/(?:hand|reminder)$/.test(path)) return true;
   if (verb === 'get' && /^\/live-classes\/[^/]+\/chat$/.test(path)) return true;
+  if (verb === 'get' && path === '/me/notifications') return true;
+  if (verb === 'patch' && /^\/me\/notifications\/[^/]+$/.test(path)) return true;
+  if (verb === 'post' && path === '/me/notifications/clear') return true;
+  if (verb === 'post' && (path === '/checkout/quote' || path === '/orders' || path === '/payments/verify' || path === '/payments/restore')) return true;
+  if (verb === 'get' && (path === '/me/orders' || /^\/orders\/[^/]+$/.test(path))) return true;
   return false;
 }
 

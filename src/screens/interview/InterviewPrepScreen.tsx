@@ -1,7 +1,7 @@
 import React from 'react';
 import {Pressable, ScrollView, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
-import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
+import {promptPayToEnrol} from '../../features/catalog/payToEnrol';
 import {useQuery} from '@tanstack/react-query';
 import {Icon, type IconName} from '../../assets/icons';
 import {AppText, ClayButton, EmptyState, ErrorState, FilterChip, LoadingBlock, SearchInput} from '../../components/ui';
@@ -93,7 +93,7 @@ export function InterviewPrepScreen() {
 
   const openCategory = (item: CatalogItem) => {
     if (item.access.state === 'denied' && item.access.reason === 'purchase_required') {
-      showLearnerUnavailable();
+      promptPayToEnrol({kind: 'interviewCategory', id: item.id, title: item.title});
       return;
     }
     navigation.navigate('InterviewQuestionList', {categoryId: item.id});
@@ -108,7 +108,7 @@ export function InterviewPrepScreen() {
       <BrandedHeader
         showBack
         onBack={() => navigation.goBack()}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
         unread
       />
       <ScrollView

@@ -1,47 +1,39 @@
 import {createThemedStyles} from '../../theme';
-import React, {useRef, useState} from 'react';
-import {AppState, Pressable, ScrollView, StyleSheet, View} from 'react-native';
+import React, {useCallback, useState} from 'react';
+import {Pressable, ScrollView, View} from 'react-native';
 import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
 import {useMutation, useQuery} from '@tanstack/react-query';
-import Video, {type VideoRef} from 'react-native-video';
 import {useRepositories} from '../../core/di';
 import {colors, space} from '../../theme';
 import {AppText, ClayButton, ErrorState, LoadingBlock} from '../../components/ui';
-import {ClayCard} from '../../components/ui/Clay';
+import {ClayCard, IconButton} from '../../components/ui/Clay';
 import {Screen, StickyActionFooter} from '../../components/layout/Screen';
-import {IconButton} from '../../components/ui/Clay';
 import {Chalkboard} from '../../assets/illustrations';
+import {MediaPlayer} from '../../components/media/MediaPlayer';
 import type {HomeNav} from '../../navigation/types';
 import {accountKey, isAuthenticated} from '../../core/session';
 import {queryClient} from '../../core/query';
 import {useResource} from '../../core/useResource';
 import {usePreferencesStore} from '../../features/settings/preferencesStore';
-import {videoBitRate} from '../../features/settings/preferences';
+import {videoBitRate, videoInitialBitRate} from '../../features/settings/preferences';
 
 export function LessonPlayerScreen() {
   const navigation = useNavigation<HomeNav>();
   const {courseId: routeCourseId, lessonId} = useRoute().params as {courseId?: string; lessonId: string};
   const repos = useRepositories();
   const [tab, setTab] = useState<'Notes' | 'Q&A' | 'Docs' | 'Chat'>('Notes');
-  const last = useRef(0);
-  const duration = useRef(0);
-  const video = useRef<VideoRef>(null);
   const focused = useIsFocused();
-  const [active, setActive] = useState(AppState.currentState === 'active');
   const [playbackError, setPlaybackError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const quality = usePreferencesStore(s => s.videoQuality);
   const [progressError, setProgressError] = useState(false);
-  React.useEffect(() => {
-    const sub = AppState.addEventListener('change', state => setActive(state === 'active'));
-    return () => sub.remove();
-  }, []);
-  React.useEffect(() => { last.current = 0; setPlaybackError(false); }, [lessonId]);
+  React.useEffect(() => { setPlaybackError(false); }, [lessonId]);
   const lesson = useQuery({queryKey: ['lesson', accountKey(), routeCourseId, lessonId], queryFn: () => repos.learning.lesson(lessonId)});
   const videoResource = lesson.data?.resources.find(item => item.kind === 'video');
   const playback = useQuery({
     queryKey: ['playback', accountKey(), videoResource?.id],
     enabled: Boolean(videoResource) && isAuthenticated() && lesson.data?.state !== 'locked',
-    staleTime: 0,
+    staleTime: 45_000,
     queryFn: () => repos.account.authorizeDownload(videoResource!.id),
     refetchInterval: query => {
       const seconds = query.state.data?.playback?.expiresInSeconds;
@@ -53,41 +45,47 @@ export function LessonPlayerScreen() {
   const streamUrl = stream?.url && (stream.type === 'mux_hls' || stream.type === 'cloudinary_hls') ? stream.url : undefined;
   const complete = useMutation({mutationFn: () => repos.learning.completeLesson(lessonId), onSuccess: () => queryClient.invalidateQueries()});
   const resource = useResource();
+  const saveProgress = useCallback((currentTime: number, duration: number) => {
+    if (!isAuthenticated() || currentTime < 1) return;
+    const progressPct = duration > 0 ? (currentTime / duration) * 100 : undefined;
+    void repos.learning.saveProgress(lessonId, currentTime, progressPct)
+      .then(() => setProgressError(prev => (prev ? false : prev)))
+      .catch(() => setProgressError(prev => (prev ? prev : true)));
+  }, [lessonId, repos.learning]);
+  const retryPlayback = useCallback(() => {
+    setPlaybackError(false);
+    void playback.refetch().finally(() => setReloadToken(value => value + 1));
+  }, [playback]);
 
   return (
     <Screen padded={false}>
       <View style={styles.player}>
-        {streamUrl && lesson.data?.state !== 'locked' && !playbackError ? (
-          <Video
-            ref={video}
-            source={{uri: streamUrl, type: 'm3u8'}}
-            style={StyleSheet.absoluteFill}
-            controls
-            paused={!focused || !active}
-            playInBackground={false}
+        {streamUrl && lesson.data?.state !== 'locked' ? (
+          <MediaPlayer
+            uri={streamUrl}
+            sessionKey={lessonId}
+            reloadToken={reloadToken}
+            active={focused && !playbackError}
+            mediaType="m3u8"
             maxBitRate={videoBitRate(quality)}
+            initialBitrate={videoInitialBitRate(quality)}
+            badge={quality}
+            onBack={() => navigation.goBack()}
             onError={() => setPlaybackError(true)}
-            onLoad={({duration: length}) => { duration.current = length; }}
-            resizeMode="contain"
-            onProgress={({currentTime}) => {
-              if (isAuthenticated() && Date.now() - last.current > 15000) {
-                last.current = Date.now();
-                const progressPct = duration.current > 0 ? (currentTime / duration.current) * 100 : undefined;
-                void repos.learning.saveProgress(lessonId, currentTime, progressPct).then(() => setProgressError(false)).catch(() => setProgressError(true));
-              }
-            }}
+            onTimeUpdate={saveProgress}
           />
         ) : (
-          <View style={styles.poster}><Chalkboard lines={['RACI', 'Learn at', 'your pace']} /></View>
+          <View style={styles.poster}>
+            <View style={styles.posterBack}>
+              <IconButton icon="back" onPress={() => navigation.goBack()} accessibilityLabel="Back" />
+            </View>
+            <Chalkboard lines={['RACI', 'Learn at', 'your pace']} />
+          </View>
         )}
-        <View style={styles.overlay}>
-          <IconButton icon="back" onPress={() => navigation.goBack()} accessibilityLabel="Back" />
-          <AppText size={11} weight="700" color="#fff">{quality}</AppText>
-        </View>
       </View>
       {lesson.isLoading ? <LoadingBlock /> : null}
       {lesson.isError ? <ErrorState message="This lesson could not be opened." onRetry={() => lesson.refetch()} /> : null}
-      {playbackError ? <ErrorState message="Video playback stopped. Check your connection and try again." onRetry={() => { setPlaybackError(false); void lesson.refetch(); }} /> : null}
+      {playbackError ? <ErrorState message="Video playback stopped. Check your connection and try again." onRetry={retryPlayback} /> : null}
       {lesson.data ? (
         <>
           <ScrollView contentContainerStyle={styles.page}>
@@ -125,9 +123,9 @@ export function LessonPlayerScreen() {
 }
 
 const styles = createThemedStyles({
-  player: {height: 228, backgroundColor: '#0D1B3E', justifyContent: 'center', alignItems: 'center'},
-  poster: {alignItems: 'center'},
-  overlay: {position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+  player: {height: 228, backgroundColor: '#0D1B3E', overflow: 'hidden'},
+  poster: {flex: 1, alignItems: 'center', justifyContent: 'center'},
+  posterBack: {position: 'absolute', top: 12, left: 12},
   page: {padding: space.pageX, gap: 12, paddingBottom: 26},
   tabs: {flexDirection: 'row', backgroundColor: colors.pressed, borderRadius: 14, padding: 4},
   tab: {flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12},

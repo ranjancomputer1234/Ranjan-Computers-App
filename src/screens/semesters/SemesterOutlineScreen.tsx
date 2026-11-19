@@ -7,6 +7,7 @@ import {DetailHeader, Screen, StickyActionFooter} from '../../components/layout/
 import {Gradient} from '../../components/ui/Gradient';
 import {Icon, type IconName} from '../../assets/icons';
 import type {Semester} from '../../core/types';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {useSemesterOutline} from '../../features/semesters/hooks/useSemesterOutline';
 import {formatDay} from '../../features/semesters/hooks/useSemesterWait';
 import {styles} from './styles';
@@ -69,7 +70,10 @@ export function SemesterOutlineScreen() {
       />
       {outline.list.isLoading ? <LoadingBlock /> : null}
       {outline.list.isError ? (
-        <ErrorState message="Your semesters could not be loaded." onRetry={() => void outline.refresh()} />
+        <ErrorState
+          message={isFeatureUnavailable(outline.list.error) ? 'Semester learning is not available in the app yet.' : 'Your semesters could not be loaded.'}
+          onRetry={isFeatureUnavailable(outline.list.error) ? undefined : () => void outline.refresh()}
+        />
       ) : null}
       {outline.list.data ? (
         <ScrollView

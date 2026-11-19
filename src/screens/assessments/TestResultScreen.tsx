@@ -8,6 +8,7 @@ import {AppText, EmptyState, ErrorState, LoadingBlock} from '../../components/ui
 import {ClayCard} from '../../components/ui/Clay';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {shareService} from '../../core/services';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {LearningStackParamList} from '../../navigation/types';
@@ -70,7 +71,10 @@ export function TestResultScreen() {
     return (
       <Screen padded={false}>
         <DetailHeader title="Test Result" onBack={() => navigation.goBack()} />
-        <ErrorState message="This result could not be loaded." onRetry={() => result.refetch()} />
+        <ErrorState
+          message={isFeatureUnavailable(result.error) ? 'Test results are not available in the app yet.' : 'This result could not be loaded.'}
+          onRetry={isFeatureUnavailable(result.error) ? undefined : () => result.refetch()}
+        />
       </Screen>
     );
   }

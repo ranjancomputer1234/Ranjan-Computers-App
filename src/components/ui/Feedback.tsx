@@ -47,13 +47,14 @@ export function FilterChip({
   );
 }
 
-export function AccessBadge({pricing}: {pricing: 'free' | 'paid' | 'purchased'}) {
+export function AccessBadge({pricing, label}: {pricing: 'free' | 'paid' | 'purchased'; label?: string}) {
   const palette = pricing === 'paid' ? gradients.paidBadge : gradients.freeBadge;
-  const label = pricing === 'purchased' ? 'PURCHASED' : pricing.toUpperCase();
+  const text = label ?? (pricing === 'purchased' ? 'PURCHASED' : pricing.toUpperCase());
+  const showsAmount = /\d/.test(text);
   return (
     <Gradient colors={palette} style={styles.badge}>
-      <AppText weight="800" size={8.5} color="#fff" style={{letterSpacing: 0.8}}>
-        {label}
+      <AppText weight="800" size={showsAmount ? 10 : 8.5} color="#fff" translate={false} style={{letterSpacing: showsAmount ? 0 : 0.8}}>
+        {text}
       </AppText>
     </Gradient>
   );

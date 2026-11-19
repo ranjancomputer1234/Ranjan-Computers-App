@@ -51,7 +51,7 @@ export type Repositories = {
 
 export type AuthRepository = {
   login: (identifier: string, password: string) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile}>;
-  register: (input: {fullName?: string; firstName?: string; lastName?: string; email: string; phone?: string; city?: string; password: string}) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile}>;
+  register: (input: {fullName?: string; firstName?: string; lastName?: string; email: string; phone?: string; city?: string; password: string}) => Promise<{challengeId: string}>;
   verifyChallenge: (challengeId: string, code: string) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile}>;
   forgotPassword: (identifier: string) => Promise<{challengeId: string}>;
   verifyResetCode: (challengeId: string, code: string) => Promise<{resetToken: string}>;

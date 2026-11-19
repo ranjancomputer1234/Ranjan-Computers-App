@@ -149,7 +149,7 @@ export function MyLearningScreen() {
           title="My Learning"
           subtitle="Continue where you left off"
           right={<IconButton icon="download" onPress={() => navigation.navigate('Downloads')} accessibilityLabel="Downloads" />}
-          onNotifications={showLearnerUnavailable}
+          onNotifications={() => navigation.navigate('Notifications')}
         />
         <View style={styles.guestPage}>
           <ClayCard variant="sky" style={styles.guestCard}>
@@ -175,7 +175,7 @@ export function MyLearningScreen() {
         title="My Learning"
         subtitle="Continue where you left off"
         right={<IconButton icon="download" onPress={() => navigation.navigate('Downloads')} accessibilityLabel="Downloads" />}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
         unread={(home.data?.unreadNotifications ?? 0) > 0}
       />
       <ScrollView

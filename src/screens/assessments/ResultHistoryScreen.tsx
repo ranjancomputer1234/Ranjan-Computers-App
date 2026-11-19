@@ -5,6 +5,7 @@ import {useNavigation} from '@react-navigation/native';
 import {useQuery} from '@tanstack/react-query';
 import Svg, {Circle} from 'react-native-svg';
 import {Icon} from '../../assets/icons';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {useRepositories} from '../../core/di';
 import {accountKey} from '../../core/session';
 import type {TestResult} from '../../core/types';
@@ -81,8 +82,8 @@ export function ResultHistoryScreen() {
       {history.isLoading ? <LoadingBlock /> : null}
       {history.isError ? (
         <ErrorState
-          message="Your test history could not be loaded."
-          onRetry={() => history.refetch()}
+          message={isFeatureUnavailable(history.error) ? 'Test results are not available in the app yet.' : 'Your test history could not be loaded.'}
+          onRetry={isFeatureUnavailable(history.error) ? undefined : () => history.refetch()}
         />
       ) : null}
       {!history.isLoading && !history.isError ? (

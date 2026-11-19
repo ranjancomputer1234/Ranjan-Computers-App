@@ -6,6 +6,7 @@ import {AppText, ClayButton, ErrorState, LoadingBlock} from '../../components/ui
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
 import {Icon, type IconName} from '../../assets/icons';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {useSemesterWait, type WaitChecklistItem, type WaitHeroTone, type WaitRowState} from '../../features/semesters/hooks/useSemesterWait';
 import {styles} from './styles';
 
@@ -30,7 +31,10 @@ export function SemesterWaitScreen() {
       />
       {wait.detail.isLoading ? <LoadingBlock /> : null}
       {wait.detail.isError ? (
-        <ErrorState message="We could not check your semester status." onRetry={() => void wait.refresh()} />
+        <ErrorState
+          message={isFeatureUnavailable(wait.detail.error) ? 'Semester learning is not available in the app yet.' : 'We could not check your semester status.'}
+          onRetry={isFeatureUnavailable(wait.detail.error) ? undefined : () => void wait.refresh()}
+        />
       ) : null}
       {wait.semester ? (
         <ScrollView

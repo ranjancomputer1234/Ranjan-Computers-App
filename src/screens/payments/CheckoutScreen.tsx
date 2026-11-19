@@ -10,6 +10,7 @@ import {useCheckout} from '../../features/payments/hooks/useCheckout';
 import {catalogOffPercent} from '../../features/payments/methods';
 import {inr} from '../../features/payments/utils/inr';
 import type {PaymentMethodView} from '../../features/payments/methods';
+import {PaymentSheet} from './PaymentSheet';
 import {styles} from './styles';
 
 export function CheckoutScreen() {
@@ -23,14 +24,11 @@ export function CheckoutScreen() {
     removeCoupon,
     method,
     setMethod,
-    instrument,
-    setInstrument,
-    expanded,
-    setExpanded,
     availableMethods,
     inAppCheckout,
     quote,
     storeProduct,
+    savedCards,
     pay,
     data,
     payableLabel,
@@ -39,12 +37,23 @@ export function CheckoutScreen() {
     expired,
   } = useCheckout();
 
+  const [paySheet, setPaySheet] = React.useState(false);
+  const submitted = React.useRef(false);
   const offPercent = data ? catalogOffPercent(data) : 0;
   const selling = data ? data.totalMinor + (data.couponDiscountMinor ?? 0) : 0;
   const couponSaved = data?.couponDiscountMinor ?? 0;
   const couponApplied = Boolean(appliedCoupon && data?.coupon === appliedCoupon);
   const busy = pay.isPending || quote.isFetching;
   const canPay = Boolean(data) && !busy && !unavailable && !expired && (!inAppCheckout || Boolean(method));
+  const payLabel = pay.isPending ? 'Processing…' : payableLabel ? `Pay ${payableLabel} Securely` : 'Pay to Enroll';
+
+  React.useEffect(() => {
+    if (!submitted.current || pay.isPending) return;
+    if (pay.isSuccess || pay.isError) {
+      submitted.current = false;
+      setPaySheet(false);
+    }
+  }, [pay.isPending, pay.isSuccess, pay.isError]);
 
   return (
     <Screen padded={false}>
@@ -173,13 +182,7 @@ export function CheckoutScreen() {
                       accessibilityRole="radio"
                       accessibilityState={{selected}}
                       accessibilityLabel={item.label}
-                      onPress={() => {
-                        if (selected) setExpanded(current => (current === item.id ? undefined : item.id));
-                        else {
-                          setMethod(item.id);
-                          setExpanded(item.id === 'upi' ? undefined : item.id);
-                        }
-                      }}
+                      onPress={() => setMethod(item.id)}
                       style={({pressed}) => [styles.payRow, selected && styles.payRowOn, pressed && styles.pressed]}>
                       <View style={[styles.radio, selected && styles.radioOn]}>{selected ? <View style={styles.radioDot} /> : null}</View>
                       <View style={[styles.payIcon, {backgroundColor: clay[item.clay].bg}]}>
@@ -190,18 +193,11 @@ export function CheckoutScreen() {
                           {item.label}
                         </AppText>
                         <AppText weight="500" size={9} color={colors.text2}>
-                          {item.hint}
+                          {selected ? nextStepHint(item.id) : item.hint}
                         </AppText>
                       </View>
                       <MethodAccessory item={item} />
                     </Pressable>
-                    {selected && expanded === item.id ? (
-                      <MethodDetails
-                        item={item}
-                        instrument={instrument}
-                        onSelect={setInstrument}
-                      />
-                    ) : null}
                   </View>
                 );
               })}
@@ -243,20 +239,49 @@ export function CheckoutScreen() {
       <StickyActionFooter>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={pay.isPending ? 'Processing payment' : `Pay ${payableLabel || ''} securely`}
+          accessibilityLabel={payLabel}
           disabled={!canPay}
-          onPress={() => pay.mutate()}
+          onPress={() => {
+            if (inAppCheckout) {
+              pay.reset();
+              submitted.current = false;
+              setPaySheet(true);
+              return;
+            }
+            pay.mutate();
+          }}
           style={({pressed}) => [{width: '100%', opacity: !canPay ? 0.5 : pressed ? 0.9 : 1}]}>
           <Gradient colors={['#FB8C00', '#F57C00']} style={styles.payCta}>
             <Icon name="lock" size={14} color="#fff" />
             <AppText weight="800" size={13} color="#fff">
-              {pay.isPending ? 'Processing…' : `Pay ${payableLabel || ''} Securely`}
+              {payLabel}
             </AppText>
           </Gradient>
         </Pressable>
       </StickyActionFooter>
+      <PaymentSheet
+        visible={paySheet}
+        method={method}
+        amountLabel={payableLabel}
+        busy={pay.isPending}
+        savedCards={savedCards}
+        onClose={() => {
+          if (!pay.isPending) setPaySheet(false);
+        }}
+        onConfirm={draft => {
+          submitted.current = true;
+          pay.mutate(draft);
+        }}
+      />
     </Screen>
   );
+}
+
+function nextStepHint(method: PaymentMethodView['id']) {
+  if (method === 'upi') return 'Next: choose GPay, PhonePe, Paytm, BHIM, or a UPI ID';
+  if (method === 'card') return 'Next: use a saved card or enter a new one';
+  if (method === 'netbanking') return 'Next: choose your bank';
+  return 'Next: choose a wallet';
 }
 
 function SecureBadge() {
@@ -290,42 +315,3 @@ function MethodAccessory({item}: {item: PaymentMethodView}) {
   return <Icon name="chev" size={14} color="#B0BEC5" />;
 }
 
-function MethodDetails({
-  item,
-  instrument,
-  onSelect,
-}: {
-  item: PaymentMethodView;
-  instrument?: string;
-  onSelect: (value: string) => void;
-}) {
-  if (item.id === 'card') {
-    return (
-      <View style={styles.cardHint}>
-        <AppText weight="600" size={11} color={colors.text2} style={{lineHeight: 16}}>
-          Card number, expiry and CVV are entered on the next secure payment step. RACI never stores your card details.
-        </AppText>
-      </View>
-    );
-  }
-  if (!item.options?.length) return null;
-  return (
-    <View style={styles.optionWrap}>
-      {item.options.map(option => {
-        const on = instrument === option;
-        return (
-          <Pressable
-            key={option}
-            accessibilityRole="button"
-            accessibilityState={{selected: on}}
-            onPress={() => onSelect(option)}
-            style={[styles.optionChip, on && styles.optionChipOn]}>
-            <AppText weight="700" size={10.5} color={on ? colors.activeBlue : colors.navy}>
-              {option}
-            </AppText>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}

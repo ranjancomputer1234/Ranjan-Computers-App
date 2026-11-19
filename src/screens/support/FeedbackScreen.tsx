@@ -75,7 +75,9 @@ export function FeedbackScreen() {
                 </AppText>
               </>
             ) : (
-              <ErrorState message="No support email is configured for this build." />
+              <AppText size={13} color={theme.colors.text2}>
+                A support email is not configured for this build, so this form cannot open a message yet. Help & Support lists what to do for missing lessons, locked courses, and features that are not connected yet.
+              </AppText>
             )}
           </>
         ) : null}

@@ -1,42 +1,69 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {Alert} from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
-import {keepPreviousData, useMutation, useQuery} from '@tanstack/react-query';
+import {useMutation, useQuery} from '@tanstack/react-query';
 import {useRepositories} from '../../../core/di';
-import {clearPurchase, readPurchase, terminalOrder, writePurchase} from '../purchaseState';
+import {clearPurchase, clearUnplacedPurchase, readPurchase, terminalOrder, writePurchase} from '../purchaseState';
+import {enrollmentQuote} from '../enrollmentQuote';
 import {accountKey, isAuthenticated} from '../../../core/session';
 import {paymentService} from '../../../core/services';
 import {appConfig} from '../../../core/config';
-import {currentSessionGeneration} from '../../../core/api/http';
-import {queryKeys} from '../../../core/query';
+import {currentSessionGeneration, isAppError, isFeatureUnavailable} from '../../../core/api/http';
+import {queryClient, queryKeys} from '../../../core/query';
 import {getAccountScoped, setAccountScoped} from '../../../core/storage';
 import {inr} from '../utils/inr';
 import {defaultMethod, formatQuoteCountdown, methodsFor} from '../methods';
-import type {PaymentMethodId} from '../../../core/types';
-import type {RootNav} from '../../../navigation/types';
+import {accessBlocked, checkoutAlert, PAYMENT_FAILED_MESSAGE, PAYMENT_FAILED_TITLE} from '../paymentOutcome';
+import type {SavedCard} from '../paymentInstruments';
+import {readSavedCards, storeSavedCard} from '../savedCards';
+import type {Order, PaymentMethodId} from '../../../core/types';
+import type {CheckoutParams, RootNav} from '../../../navigation/types';
+
+type PayOutcome = Order | {failed: true};
+type PayInput = {methodDetail?: string; saveCard?: SavedCard};
+
+function commerceMissing(error: unknown) {
+  return isFeatureUnavailable(error) || (isAppError(error) && (error.httpStatus === 404 || error.httpStatus === 405 || error.httpStatus === 501));
+}
 
 const METHOD_PREF = 'preferredPaymentMethod';
 
 export function useCheckout() {
   const navigation = useNavigation<RootNav>();
-  const productId = (useRoute().params as {productId: string}).productId;
+  const checkout = useRoute().params as CheckoutParams;
+  const productId = checkout.productId;
+  const preview = useMemo(
+    () => enrollmentQuote({
+      productId: checkout.productId,
+      title: checkout.title,
+      amountMinor: checkout.amountMinor,
+      currency: checkout.currency,
+    }),
+    [checkout.productId, checkout.title, checkout.amountMinor, checkout.currency],
+  );
   const repos = useRepositories();
   const [coupon, setCoupon] = useState('');
   const [appliedCoupon, applyCoupon] = useState('');
   const [couponError, setCouponError] = useState('');
   const [method, setMethodState] = useState<PaymentMethodId | undefined>();
-  const [instrument, setInstrument] = useState<string | undefined>();
-  const [expanded, setExpanded] = useState<PaymentMethodId | undefined>();
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const running = useRef(false);
   const owner = accountKey();
 
   const quote = useQuery({
     queryKey: queryKeys.quote(owner, productId, appliedCoupon),
-    queryFn: () => repos.commerce.quote(productId, appliedCoupon || undefined),
+    queryFn: async () => {
+      try {
+        return await repos.commerce.quote(productId, appliedCoupon || undefined);
+      } catch (error) {
+        if (appliedCoupon || !commerceMissing(error)) throw error;
+        return enrollmentQuote(checkout);
+      }
+    },
     enabled: isAuthenticated(),
     staleTime: 0,
-    placeholderData: keepPreviousData,
+    placeholderData: preview,
   });
   const storeProduct = useQuery({
     queryKey: ['store-product', quote.data?.storeProductId],
@@ -59,6 +86,7 @@ export function useCheckout() {
     void getAccountScoped<PaymentMethodId | ''>(owner, METHOD_PREF, '').then(saved => {
       if (saved) setMethodState(saved);
     });
+    void readSavedCards(owner).then(setSavedCards);
   }, [owner]);
 
   useEffect(() => {
@@ -90,7 +118,6 @@ export function useCheckout() {
 
   const setMethod = (next: PaymentMethodId) => {
     setMethodState(next);
-    setInstrument(undefined);
     void setAccountScoped(owner, METHOD_PREF, next);
   };
 
@@ -107,67 +134,119 @@ export function useCheckout() {
     applyCoupon('');
   };
 
-  const payableLabel = storeProduct.data?.formattedPrice ?? (data ? inr(data.totalMinor, data.currency) : '');
-  const unavailable = !storeProduct.data;
+  const payableLabel = storeProduct.data?.formattedPrice ?? (data && data.totalMinor > 0 ? inr(data.totalMinor, data.currency) : '');
+  const unavailable = !inAppCheckout && !storeProduct.data;
 
-  const pay = useMutation({
-    mutationFn: async () => {
+  const finishPaidOrder = async (order: Order): Promise<PayOutcome> => {
+    if (order.status !== 'succeeded') return order;
+    if (checkout.contentKind !== 'course' || !checkout.contentId) return order;
+    try {
+      await repos.learning.enroll(checkout.contentId);
+    } catch (error) {
+      const alreadyEnrolled = isAppError(error) && (error.httpStatus === 409 || /already/i.test(`${error.code} ${error.message}`));
+      if (alreadyEnrolled) return order;
+      if (accessBlocked(error) || (isAppError(error) && error.httpStatus === 403)) {
+        return {...order, status: 'paidAccessPending'};
+      }
+    }
+    return order;
+  };
+
+  const pay = useMutation<PayOutcome, Error, PayInput | void>({
+    mutationFn: async (input): Promise<PayOutcome> => {
+      const methodDetail = input?.methodDetail?.trim() || undefined;
       if (running.current) throw new Error('A purchase is already in progress.');
-      if (!isAuthenticated() || !quote.data || !appConfig.capabilities.payments) throw new Error('This purchase is unavailable.');
+      if (!isAuthenticated() || !quote.data) throw new Error('This purchase is unavailable.');
       if (!Number.isFinite(Date.parse(quote.data.expiresAt)) || Date.parse(quote.data.expiresAt) <= Date.now()) {
         void quote.refetch();
         throw new Error('The quote expired. Please review the updated price.');
       }
-      if (!storeProduct.data) throw new Error('This product is not available on Google Play yet.');
+      const playBilling = Boolean(storeProduct.data) && !inAppCheckout;
+      if (playBilling && !appConfig.capabilities.payments) throw new Error('This purchase is unavailable.');
+      if (playBilling && !storeProduct.data) throw new Error('This product is not available on Google Play yet.');
+      if (!playBilling && !inAppCheckout) throw new Error('Choose a payment method to continue.');
       if (inAppCheckout && !selectedMethod) throw new Error('Choose a payment method to continue.');
+      if (inAppCheckout && !methodDetail) throw new Error('Choose how you want to pay.');
       running.current = true;
       const generation = currentSessionGeneration();
       try {
         const prior = await readPurchase(owner);
         if (prior?.orderId) {
           const existing = await repos.commerce.getOrder(prior.orderId);
-          if (!terminalOrder(existing.status) || existing.status === 'succeeded') return existing;
+          if (!terminalOrder(existing.status) || existing.status === 'succeeded') return finishPaidOrder(existing);
           await clearPurchase(owner, existing.id);
         }
         if (prior && !prior.orderId && prior.productId !== productId) throw new Error('Retry your earlier checkout first so its order can be recovered.');
         const key = prior && !prior.orderId ? prior.key : 'order-' + productId + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
         await writePurchase(owner, {productId, key});
         const couponToSend = inAppCheckout ? appliedCoupon || undefined : undefined;
-        const order = await repos.commerce.createOrder(productId, couponToSend, key, selectedMethod);
+        let order: Order;
+        try {
+          order = await repos.commerce.createOrder(productId, couponToSend, key, selectedMethod);
+        } catch (error) {
+          await clearUnplacedPurchase(owner);
+          if (commerceMissing(error) || accessBlocked(error)) return {failed: true};
+          throw error;
+        }
         if (generation !== currentSessionGeneration()) throw new Error('Your account changed. Please reopen checkout.');
         await writePurchase(owner, {productId, key, orderId: order.id});
-        if (!['idle', 'creatingOrder', 'awaitingProvider'].includes(order.status)) return order;
-        const launch = await paymentService.launch(order.id, order.quote.totalMinor, storeProduct.data, owner);
-        if (generation !== currentSessionGeneration()) throw new Error('Your account changed. Restore purchases from your original account.');
-        if (launch.status === 'cancelled') {
-          return {...order, status: 'cancelled' as const};
+        if (!['idle', 'creatingOrder', 'awaitingProvider'].includes(order.status)) {
+          return finishPaidOrder(order);
         }
-        if (launch.status === 'failed') {
-          return {...order, status: 'failed' as const};
+        let launch;
+        try {
+          launch = await paymentService.launch(order.id, order.quote.totalMinor, storeProduct.data, owner);
+        } catch {
+          await clearPurchase(owner, order.id);
+          return {failed: true};
+        }
+        if (generation !== currentSessionGeneration()) throw new Error('Your account changed. Restore purchases from your original account.');
+        if (launch.status === 'cancelled' || launch.status === 'failed') {
+          await clearPurchase(owner, order.id);
+          return {failed: true};
         }
         if (!launch.payload) return {...order, status: 'unknownNeedsRecheck' as const};
-        return await repos.commerce.verify(order.id, {
+        const verified = await repos.commerce.verify(order.id, {
           ...launch.payload,
           method: selectedMethod,
-          methodDetail: instrument,
+          methodDetail,
         });
+        return finishPaidOrder(verified);
       } finally {
         running.current = false;
       }
     },
-    onSuccess: async order => {
+    onSuccess: async (outcome, input) => {
       if (accountKey() !== owner || !isAuthenticated()) return;
+      if ('failed' in outcome) {
+        Alert.alert(PAYMENT_FAILED_TITLE, PAYMENT_FAILED_MESSAGE);
+        return;
+      }
+      const order = outcome;
       if (terminalOrder(order.status)) await clearPurchase(owner, order.id);
-      if (order.status === 'succeeded') navigation.replace('PaymentSuccess', {orderId: order.id});
-      else if (order.status === 'failed') navigation.replace('PaymentFailure', {orderId: order.id});
-      else if (order.status === 'cancelled') Alert.alert('Purchase cancelled', 'You can return to checkout whenever you are ready.');
-      else navigation.replace('PaymentPending', {orderId: order.id});
+      if (order.status === 'succeeded') {
+        if (input?.saveCard) setSavedCards(await storeSavedCard(owner, input.saveCard));
+        await queryClient.invalidateQueries({
+          predicate: query => {
+            const root = String(query.queryKey[0]);
+            return root === 'course' || root === 'learner' || root === 'lessons' || root === 'catalog' || root === 'home';
+          },
+        });
+        navigation.replace('PaymentSuccess', {orderId: order.id});
+      } else if (order.status === 'failed' || order.status === 'cancelled') {
+        navigation.replace('PaymentFailure', {orderId: order.id});
+      } else navigation.replace('PaymentPending', {orderId: order.id});
     },
     onError: async error => {
       if (accountKey() !== owner || !isAuthenticated()) return;
       const pending = await readPurchase(owner).catch(() => null);
-      if (pending?.orderId) navigation.replace('PaymentPending', {orderId: pending.orderId});
-      else Alert.alert('Could not start purchase', (error as Error).message || 'Please try again.');
+      const alert = checkoutAlert(error);
+      if (pending?.orderId && !accessBlocked(error)) {
+        navigation.replace('PaymentPending', {orderId: pending.orderId});
+        return;
+      }
+      if (pending?.orderId) await clearPurchase(owner, pending.orderId).catch(() => {});
+      Alert.alert(alert.title, alert.message);
     },
   });
 
@@ -181,14 +260,11 @@ export function useCheckout() {
     removeCoupon,
     method: selectedMethod,
     setMethod,
-    instrument,
-    setInstrument,
-    expanded,
-    setExpanded,
     availableMethods,
     inAppCheckout,
     quote,
     storeProduct,
+    savedCards,
     pay,
     data,
     payableLabel,

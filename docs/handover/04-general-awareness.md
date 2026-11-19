@@ -1,4 +1,4 @@
-# Handover 4 — General Awareness
+﻿# Handover 4 — General Awareness
 
 General Awareness lists published topics, then loads one topic with its entries. Explore section metadata is not the topic list.
 

@@ -21,6 +21,7 @@ import {LegalScreen} from '../screens/support';
 import {SplashScreen} from '../screens/splash/SplashScreen';
 import {OnboardingScreen} from '../screens/onboarding';
 import {usePreferencesStore} from '../features/settings/preferencesStore';
+import {navigationRef} from './navigationRef';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
@@ -79,7 +80,7 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       <Stack.Navigator screenOptions={screenOptions} initialRouteName={inApp ? 'Main' : onboardingComplete ? 'Login' : 'Onboarding'}>
         {inApp ? (
           <Stack.Group navigationKey={status}>

@@ -105,7 +105,7 @@ export function LiveScheduleScreen() {
         subtitle={headerSubtitle}
         onCalendar={() => setCalendarOpen(true)}
         calendarActive={calendarOpen || selected !== null}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
         unread
       />
       <ScheduleCalendarSheet

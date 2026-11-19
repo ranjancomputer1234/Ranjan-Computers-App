@@ -143,7 +143,7 @@ export function EnrolledCoursesScreen() {
         subtitle="Learn at your own pace"
         onBack={() => navigation.goBack()}
         right={<IconButton icon="download" onPress={() => navigation.navigate('Downloads')} accessibilityLabel="Downloads" />}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
       <FlatList
         {...pullRefresh.scrollProps}

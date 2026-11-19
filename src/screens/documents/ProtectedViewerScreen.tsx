@@ -1,8 +1,10 @@
 import React from 'react';
 import {Image, NativeModules, Pressable, ScrollView, StyleSheet, View} from 'react-native';
-import {useRoute} from '@react-navigation/native';
-import Video from 'react-native-video';
+import {useIsFocused, useRoute} from '@react-navigation/native';
 import {useRepositories} from '../../core/di';
+import {MediaPlayer} from '../../components/media/MediaPlayer';
+import {usePreferencesStore} from '../../features/settings/preferencesStore';
+import {videoBitRate, videoInitialBitRate} from '../../features/settings/preferences';
 import {accountKey} from '../../core/session';
 import {offlineFiles, type DownloadAuthorization} from '../../core/offlineFiles';
 import {colors, space} from '../../theme';
@@ -35,17 +37,23 @@ function isPlayable(auth: DownloadAuthorization) {
 export function ProtectedViewerScreen() {
   const params = useRoute().params as ViewerParams;
   const repos = useRepositories();
+  const focused = useIsFocused();
+  const quality = usePreferencesStore(s => s.videoQuality);
   const [state, setState] = React.useState<ViewState | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [reloadToken, setReloadToken] = React.useState(0);
 
-  const load = React.useCallback(async (pageIndex = 0) => {
-    setLoading(true);
-    setError(null);
+  const load = React.useCallback(async (pageIndex = 0, silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const auth = await repos.account.authorizeDownload(params.resourceId);
       if (params.kind === 'video' || auth.kind === 'video' || auth.playback) {
         if (!isPlayable(auth) || !auth.playback?.url) {
+          if (silent) return;
           setState({
             mode: 'note',
             note: auth.playback?.status === 'not_ready_or_signing_not_configured'
@@ -61,6 +69,7 @@ export function ProtectedViewerScreen() {
         });
         return;
       }
+      if (silent) return;
       const delivery = await offlineFiles.fetchPrivateCopy(auth);
       if (delivery.kind !== 'pdf') {
         setState({mode: 'note', note: delivery.note});
@@ -80,13 +89,14 @@ export function ProtectedViewerScreen() {
         imagePath: page.path,
       });
     } catch (cause) {
+      if (silent) return;
       const message = cause && typeof cause === 'object' && 'message' in cause
         ? String((cause as {message: unknown}).message)
         : 'This file could not be opened inside the app.';
       setError(message);
       setState(null);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [params.kind, params.resourceId, repos.account]);
 
@@ -98,7 +108,7 @@ export function ProtectedViewerScreen() {
     if (state?.mode !== 'video' || !state.expiresInSeconds) return;
     const delay = Math.max(15, state.expiresInSeconds - 30) * 1000;
     const timer = setTimeout(() => {
-      void load(0);
+      void load(0, true);
     }, delay);
     return () => clearTimeout(timer);
   }, [load, state]);
@@ -126,8 +136,15 @@ export function ProtectedViewerScreen() {
   return (
     <Screen padded={false}>
       <DetailHeader title={params.title} subtitle="Inside the app only" />
-      {loading ? <LoadingBlock /> : null}
-      {error ? <ErrorState message={error} onRetry={() => void load(state?.mode === 'pdf' ? state.index : 0)} /> : null}
+      {loading && state?.mode !== 'video' ? <LoadingBlock /> : null}
+      {error ? <ErrorState message={error} onRetry={() => {
+        if (state?.mode === 'video') {
+          setError(null);
+          void load(0, true).finally(() => setReloadToken(value => value + 1));
+          return;
+        }
+        void load(state?.mode === 'pdf' ? state.index : 0);
+      }} /> : null}
       {state?.mode === 'note' ? (
         <View style={styles.note}>
           <AppText size={14} color={colors.navy}>{state.note}</AppText>
@@ -135,14 +152,18 @@ export function ProtectedViewerScreen() {
         </View>
       ) : null}
       {state?.mode === 'video' ? (
-        <Video
-          source={{uri: state.url, type: 'm3u8'}}
-          style={styles.video}
-          controls
-          resizeMode="contain"
-          playInBackground={false}
-          onError={() => setError('Video playback stopped. A fresh authorization is required.')}
-        />
+        <View style={styles.video}>
+          <MediaPlayer
+            uri={state.url}
+            sessionKey={params.resourceId}
+            reloadToken={reloadToken}
+            active={focused && !error}
+            mediaType="m3u8"
+            maxBitRate={videoBitRate(quality)}
+            initialBitrate={videoInitialBitRate(quality)}
+            onError={() => setError('Video playback stopped. A fresh authorization is required.')}
+          />
+        </View>
       ) : null}
       {state?.mode === 'pdf' ? (
         <ScrollView contentContainerStyle={styles.page}>

@@ -55,6 +55,13 @@ export function videoBitRate(quality: VideoQuality): number {
   return 0;
 }
 
+/** First-segment bitrate. Starting below the ceiling shows a picture sooner, then ABR climbs. */
+export function videoInitialBitRate(quality: VideoQuality): number {
+  if (quality === 'Data saver') return 450_000;
+  if (quality === 'High quality') return 2_000_000;
+  return 1_000_000;
+}
+
 export function formatReminderClock(hour: number, minute: number): string {
   const period = hour >= 12 ? 'PM' : 'AM';
   const h12 = hour % 12 || 12;

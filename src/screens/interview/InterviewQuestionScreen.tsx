@@ -7,6 +7,7 @@ import {AppText, ClayButton, ErrorState, LoadingBlock} from '../../components/ui
 import {ClayCard} from '../../components/ui/Clay';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {useRepositories} from '../../core/di';
+import {promptPayToEnrol} from '../../features/catalog/payToEnrol';
 import {useBookmark} from '../../core/useBookmark';
 import {colors} from '../../theme';
 import {useTheme} from '../../theme/ThemeProvider';
@@ -153,13 +154,39 @@ export function InterviewQuestionScreen() {
                 COMPARE & IMPROVE
               </AppText>
             </View>
+            {questionQuery.data.access?.state === 'denied' ? (
+              <ClayCard variant="orange" style={styles.answerCard}>
+                <AppText weight="900" size={14} color={theme.colors.navy}>Model answer locked</AppText>
+                <AppText size={12.5} color={theme.colors.ink} style={styles.answerText}>
+                  Enroll to open the model answer.
+                </AppText>
+                <ClayButton
+                  label="Pay to Enroll"
+                  tone="orange"
+                  compact
+                  onPress={() => promptPayToEnrol({
+                    kind: 'interviewQuestion',
+                    id: questionId,
+                    title: questionQuery.data?.prompt,
+                  })}
+                />
+              </ClayCard>
+            ) : questionQuery.data.modelAnswer ? (
             <ClayButton
               label={answerVisible ? 'Hide model answer' : 'Reveal model answer'}
               tone={answerVisible ? 'ghost' : 'success'}
               icon={answerVisible ? 'eye' : 'bookopen'}
               onPress={() => setAnswerVisible(value => !value)}
             />
-            {answerVisible ? (
+            ) : (
+              <ClayCard variant="white" style={styles.answerCard}>
+                <AppText weight="800" size={14} color={theme.colors.navy}>No model answer yet</AppText>
+                <AppText size={12.5} color={theme.colors.text2} style={styles.answerText}>
+                  A model answer has not been published for this question.
+                </AppText>
+              </ClayCard>
+            )}
+            {answerVisible && questionQuery.data.modelAnswer ? (
               <ClayCard variant="mint" style={styles.answerCard}>
                 <View style={styles.answerHeader}>
                   <View style={styles.answerIcon}>
@@ -171,7 +198,7 @@ export function InterviewQuestionScreen() {
                   </View>
                 </View>
                 <AppText size={12.5} color={theme.colors.ink} style={styles.answerText}>
-                  {questionQuery.data.modelAnswer ?? 'Focus on a direct answer supported by one relevant example.'}
+                  {questionQuery.data.modelAnswer}
                 </AppText>
                 <View style={styles.personalizeTip}>
                   <Icon name="star" size={13} color="#8A5A00" />

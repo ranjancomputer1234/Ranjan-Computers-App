@@ -16,11 +16,14 @@ export const paymentService = {
     if (!NativeModules.RaciBilling) throw new Error('Google Play purchases are unavailable on this device.');
     return NativeModules.RaciBilling.restore();
   },
-  async launch(_orderId: string, _amountMinor: number, product?: StoreProduct, accountId?: string): Promise<PaymentLaunchResult> {
-    if (appConfig.paymentRoute !== 'play_billing' || !NativeModules.RaciBilling || !product || !accountId) {
-      throw new Error('This purchase is not available yet.');
+  async launch(orderId: string, amountMinor: number, product?: StoreProduct, accountId?: string): Promise<PaymentLaunchResult> {
+    if (appConfig.capabilities.payments && appConfig.paymentRoute === 'play_billing' && NativeModules.RaciBilling && product && accountId) {
+      return NativeModules.RaciBilling.purchase(product.productId, product.priceMicros, product.currency, accountId);
     }
-    return NativeModules.RaciBilling.purchase(product.productId, product.priceMicros, product.currency, accountId);
+    if (__DEV__) {
+      return {status: 'success', payload: {provider: 'dev', orderId, amountMinor}};
+    }
+    throw new Error('This purchase is not available yet.');
   },
 };
 

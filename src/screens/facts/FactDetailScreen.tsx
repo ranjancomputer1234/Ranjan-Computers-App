@@ -10,6 +10,7 @@ import {useBookmark} from '../../core/useBookmark';
 import {ClayCard} from '../../components/ui/Clay';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {PlanetArt} from '../../assets/illustrations';
+import {promptPayToEnrol} from '../../features/catalog/payToEnrol';
 import {shareService} from '../../core/services';
 import type {HomeNav} from '../../navigation/types';
 import {styles} from './styles';
@@ -37,7 +38,14 @@ export function FactDetailScreen() {
           <ClayCard variant="lavender">
             <PlanetArt />
             <AppText weight="800" size={16} color={colors.navy}>{fact.data.text}</AppText>
-            {fact.data.explanation ? <AppText size={13} style={{lineHeight: 21}}>{fact.data.explanation}</AppText> : null}
+            {fact.data.access?.state === 'denied' ? (
+              <>
+                <AppText size={13} style={{lineHeight: 21}}>Enroll to read this explanation.</AppText>
+                <ClayButton label="Pay to Enroll" tone="orange" compact onPress={() => promptPayToEnrol({kind: 'fact', id: factId, title: fact.data?.text})} />
+              </>
+            ) : fact.data.explanation ? (
+              <AppText size={13} style={{lineHeight: 21}}>{fact.data.explanation}</AppText>
+            ) : null}
             {fact.data.quizId ? <ClayButton label="Practice this topic" compact onPress={() => navigation.navigate('TestInstructions', {testId: fact.data!.quizId!})} /> : null}
           </ClayCard>
         </ScrollView>

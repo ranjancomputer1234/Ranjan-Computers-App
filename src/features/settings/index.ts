@@ -11,6 +11,7 @@ export {
   reminderIsDue,
   transactionSubtitle,
   videoBitRate,
+  videoInitialBitRate,
   videoQualitySubtitle,
   type AppLanguage,
   type VideoQuality,

@@ -140,15 +140,20 @@ android {
 
 tasks.register("verifyReleaseConfiguration") {
     doLast {
-        ["REDI_API_BASE_URL", "REDI_PRIVACY_POLICY_URL", "REDI_ACCOUNT_DELETION_URL"].each { key ->
-            def value = rediValue(key)
+        def requireHttps = { String key, String value ->
             def uri = value ? new URI(value) : null
             if (uri == null || uri.scheme != "https" || !uri.host || uri.userInfo || uri.host.endsWith(".invalid") || uri.host == "localhost") {
                 throw new GradleException("${key} must be a real public HTTPS URL before a release can be built.")
             }
         }
+        requireHttps("REDI_API_BASE_URL", rediValue("REDI_API_BASE_URL"))
+        ["REDI_PRIVACY_POLICY_URL", "REDI_ACCOUNT_DELETION_URL"].each { key ->
+            def value = rediValue(key)?.trim()
+            if (value) requireHttps(key, value)
+            else project.logger.warn("${key} is empty. The website link stays hidden until a public HTTPS page is set.")
+        }
         if (!hasUploadKey || !file(uploadStore).isFile()) throw new GradleException("Provide your REDI_UPLOAD_STORE_FILE upload keystore; debug signing is never used for release.")
-        if (!rediFirebaseEnabled) throw new GradleException("Provide android/app/google-services.json before building a release with admin notifications.")
+        if (!rediFirebaseEnabled) project.logger.warn("android/app/google-services.json is missing. This release ships with remote push disabled.")
         ["REDI_UPLOAD_STORE_PASSWORD", "REDI_UPLOAD_KEY_ALIAS", "REDI_UPLOAD_KEY_PASSWORD"].each { key ->
             if (!rediValue(key)) throw new GradleException("Missing release signing setting: ${key}")
         }

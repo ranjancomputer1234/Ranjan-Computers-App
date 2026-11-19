@@ -126,6 +126,8 @@ export type Course = CatalogItem & {
   instructor?: Instructor;
   progress?: LearningProgress;
   productId?: EntityId;
+  /** Sellable amount from the learner API. Absent on free courses. */
+  price?: Money;
   purchased?: boolean;
   enrolled?: boolean;
 };
@@ -279,6 +281,8 @@ export type Fact = {
   bookmarked: boolean;
   featured?: boolean;
   quizId?: EntityId;
+  /** Omitted explanation means the paid copy was withheld. */
+  access?: AccessDecision;
 };
 
 export type InterviewCategory = CatalogItem;
@@ -287,6 +291,8 @@ export type InterviewQuestion = {
   categoryId: EntityId;
   prompt: string;
   modelAnswer?: string;
+  /** When denied, modelAnswer is withheld even if the payload included it. */
+  access?: AccessDecision;
 };
 
 export type LiveClass = {

@@ -1,7 +1,6 @@
 import React from 'react';
 import {Alert, Pressable, ScrollView, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
-import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
 import {useTranslation} from 'react-i18next';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {appConfig} from '../../core/config';
@@ -119,7 +118,7 @@ export function NotificationSettingsScreen() {
         <View style={styles.group}>
           <Pressable
             accessibilityRole="button"
-            onPress={showLearnerUnavailable}
+            onPress={() => navigation.navigate('Notifications')}
             style={({pressed}) => [styles.row, {backgroundColor: theme.colors.white}, pressed && styles.rowPressed]}>
             <View style={[styles.mic, {backgroundColor: theme.colors.pastel.red}]}>
               <Icon name="bell" size={17} color={theme.colors.error} />

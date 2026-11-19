@@ -16,27 +16,30 @@ import {styles} from './styles';
 
 type VerificationMode = 'register' | 'reset' | 'profile';
 
-const copyByMode: Record<VerificationMode, {eyebrow: string; title: string; description: string}> = {
+const copyByMode: Record<VerificationMode, {eyebrow: string; title: string; description: string; icon: 'send' | 'chat'}> = {
   register: {
     eyebrow: 'FINAL STEP',
-    title: 'Verify your number',
-    description: 'We sent a 6-digit code to the mobile number you provided.',
+    title: 'Verify your email',
+    description: 'We sent a 6-digit code to your email. Your account is created after this code is confirmed.',
+    icon: 'send',
   },
   reset: {
     eyebrow: 'SECURE RECOVERY',
     title: 'Check your inbox',
-    description: 'We sent a 6-digit code to your registered email or mobile number.',
+    description: 'We sent a 6-digit code to your email address.',
+    icon: 'send',
   },
   profile: {
     eyebrow: 'CONFIRM YOUR CHANGE',
     title: 'Verify your contact',
     description: 'Enter the 6-digit code we sent to confirm your new contact details.',
+    icon: 'chat',
   },
 };
 
 export function VerifyContactScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const {challengeId, mode} = useRoute().params as {challengeId: string; mode: VerificationMode};
+  const {challengeId, mode, sentTo} = useRoute().params as RootStackParamList['VerifyContact'];
   const repos = useRepositories();
   const setAuthenticated = useSessionStore(s => s.setAuthenticated);
   const inputRef = React.useRef<React.ElementRef<typeof TextInput>>(null);
@@ -95,7 +98,7 @@ export function VerifyContactScreen() {
 
           <View style={styles.verifyHeroContent}>
             <View style={styles.verifyHeroIcon} accessibilityElementsHidden>
-              <Icon name="chat" size={27} color={colors.primary} strokeWidth={2.2} />
+              <Icon name={screenCopy.icon} size={27} color={colors.primary} strokeWidth={2.2} />
               <View style={styles.verifyHeroBadge}>
                 <Icon name="check" size={11} color="#fff" strokeWidth={2.7} />
               </View>
@@ -107,7 +110,9 @@ export function VerifyContactScreen() {
               {screenCopy.title}
             </AppText>
             <AppText size={11.5} weight="600" color="#D8E9FF" center style={styles.verifyDescription}>
-              {screenCopy.description}
+              {mode === 'register' && sentTo
+                ? `We sent a 6-digit code to ${sentTo}. Your account is created after this code is confirmed.`
+                : screenCopy.description}
             </AppText>
           </View>
         </Gradient>
@@ -155,7 +160,7 @@ export function VerifyContactScreen() {
                 accessibilityHint="Enter the code sent to your contact"
                 keyboardType="number-pad"
                 inputMode="numeric"
-                autoComplete="sms-otp"
+                autoComplete={mode === 'register' || mode === 'reset' ? 'one-time-code' : 'sms-otp'}
                 textContentType="oneTimeCode"
                 importantForAutofill="yes"
                 maxLength={6}
@@ -188,7 +193,7 @@ export function VerifyContactScreen() {
               <Gradient colors={gradients.primaryButton} style={styles.verifySubmitButton}>
                 {verify.busy ? <Icon name="hourglass" size={16} color="#fff" /> : <Icon name="shield" size={16} color="#fff" />}
                 <AppText weight="800" size={12} color="#fff">
-                  {verify.busy ? 'Verifying securely…' : mode === 'reset' ? 'Verify & continue' : 'Verify my account'}
+                  {verify.busy ? 'Verifying securely…' : mode === 'register' ? 'Verify and create account' : mode === 'reset' ? 'Verify & continue' : 'Verify my account'}
                 </AppText>
               </Gradient>
             </Pressable>

@@ -1,8 +1,14 @@
 import {http, isAppError, tokenStore} from './http';
 import {appConfig} from '../config';
 import {learnerDeviceIdentity} from '../installation';
+import {
+  localNotificationPage,
+  markAllLocalNotificationsRead,
+  markLocalNotificationRead,
+} from '../localInbox';
 import {assertOfflineGrant, offlineFiles} from '../offlineFiles';
 import type {CatalogQuery, Repositories} from '../repositories';
+import {accountKey} from '../session';
 import {getAccountScoped, setAccountScoped} from '../storage';
 import type {
   AccessDecision,
@@ -11,6 +17,7 @@ import type {
   Bookmark,
   CatalogItem,
   ClayVariantName,
+  ContentKind,
   Course,
   DownloadItem,
   Enrollment,
@@ -22,6 +29,9 @@ import type {
   Lesson,
   LiveClass,
   NewsArticle,
+  NotificationCategory,
+  Order,
+  NotificationItem,
   Page,
   PricingFilter,
   Question,
@@ -86,6 +96,7 @@ type ApiCourse = {
   coverImageUrl?: string | null;
   estimatedMinutes?: number | null;
   lessons?: ApiLesson[];
+  price?: {amountMinor?: number | null; currency?: string | null} | null;
   access?: ApiAccess | null;
 };
 
@@ -222,8 +233,8 @@ async function get<T>(url: string, params?: object): Promise<T> {
   return response.data;
 }
 
-async function post<T>(url: string, body?: object): Promise<T> {
-  const response = await http.post<T>(url, body);
+async function post<T>(url: string, body?: object, headers?: Record<string, string>): Promise<T> {
+  const response = await http.post<T>(url, body, headers ? {headers} : undefined);
   return response.data;
 }
 
@@ -254,6 +265,28 @@ function unavailable<T>(feature: string): Promise<T> {
     retryable: false,
   });
 }
+
+/** Used when GET /support is missing. No invented phone number or inbox. */
+const STATIC_SUPPORT = {
+  faqs: [
+    {
+      q: 'Why is a course missing its lessons?',
+      a: 'Lessons appear after they are published. An empty lesson list means they are not available yet. A connection problem is shown separately.',
+    },
+    {
+      q: 'Why is a paid course still locked?',
+      a: 'Paid courses and other paid items use Pay to Enroll, which opens checkout. They stay locked until that payment is completed. If you have already paid, send feedback so the institute can check your access.',
+    },
+    {
+      q: 'Where are test scores, notifications, and downloads?',
+      a: 'Open Notifications for class reminders and account messages. Attempts, semester progress, and real file downloads stay unavailable until those learner services are connected.',
+    },
+    {
+      q: 'Are saved items synced?',
+      a: 'Bookmarks stay on this device for the signed-in account. They are not synced to other devices yet.',
+    },
+  ],
+};
 
 function expiryFromNow(): string {
   return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -322,14 +355,23 @@ function toAccess(access: ApiAccess | null | undefined, courseMode?: ApiCourse['
   };
 }
 
+function toMoney(price: ApiCourse['price']): Course['price'] {
+  const amountMinor = price?.amountMinor;
+  if (typeof amountMinor !== 'number' || !Number.isFinite(amountMinor) || amountMinor <= 0) return undefined;
+  const currency = price?.currency?.trim();
+  return {amountMinor: Math.round(amountMinor), currency: currency || 'INR'};
+}
+
 function toCourse(course: ApiCourse): Course {
   const access = toAccess(course.access, course.commercialMode);
+  const paid = course.commercialMode !== 'free';
   return {
     id: course.id,
     title: course.title,
     subtitle: course.summary || course.shortTitle || undefined,
     kind: 'course',
-    pricing: course.commercialMode === 'free' ? 'free' : 'paid',
+    pricing: paid ? 'paid' : 'free',
+    price: paid ? toMoney(course.price) : undefined,
     clay: course.commercialMode === 'free' ? 'mint' : 'blue',
     icon: 'bookopen',
     letter: course.shortTitle?.charAt(0) || course.title.charAt(0),
@@ -542,6 +584,13 @@ function toAttempt(row: Record<string, unknown>): Attempt & {questions: Question
   };
 }
 
+function isPublishedResult(row: Record<string, unknown>): boolean {
+  if (row.published === false || row.isPublished === false) return false;
+  const status = typeof row.status === 'string' ? row.status.toLowerCase() : '';
+  const visibility = typeof row.visibility === 'string' ? row.visibility.toLowerCase() : '';
+  return status !== 'draft' && status !== 'unpublished' && visibility !== 'draft' && visibility !== 'unpublished';
+}
+
 function toResult(row: Record<string, unknown>): TestResult {
   const questions = asRows(row.questions).map(question => {
     const status: 'correct' | 'wrong' | 'skipped' =
@@ -574,7 +623,11 @@ function toResult(row: Record<string, unknown>): TestResult {
 }
 
 function toArticle(row: Record<string, unknown>): NewsArticle {
-  const body = Array.isArray(row.body) ? row.body.map(part => String(part)) : text(row.body) ? [String(row.body)] : undefined;
+  const access = decision(row.access, text(row.commercialMode));
+  const granted = access.state === 'granted';
+  const body = granted
+    ? Array.isArray(row.body) ? row.body.map(part => String(part)) : text(row.body) ? [String(row.body)] : undefined
+    : undefined;
   return {
     id: String(row.id),
     categoryId: text(row.categoryId) ?? text(row.category) ?? 'news',
@@ -584,17 +637,18 @@ function toArticle(row: Record<string, unknown>): NewsArticle {
     readingMinutes: typeof row.readingMinutes === 'number' ? row.readingMinutes : typeof row.readingTime === 'number' ? row.readingTime : undefined,
     excerpt: text(row.excerpt) ?? text(row.summary),
     body,
-    highlights: Array.isArray(row.highlights) ? row.highlights.map(String) : undefined,
+    highlights: granted && Array.isArray(row.highlights) ? row.highlights.map(String) : undefined,
     tags: Array.isArray(row.tags) ? row.tags.map(String) : undefined,
     featured: Boolean(row.featured),
     imageUrl: text(row.imageUrl) ?? text(row.heroImageUrl),
-    access: decision(row.access, text(row.commercialMode)),
+    access,
     imageTint: 'orange',
   };
 }
 
 function toTopic(row: Record<string, unknown>): AwarenessTopic {
   const schema = row.schema === 'list' || row.schema === 'article' ? row.schema : 'pairs';
+  const access = decision(row.access, text(row.commercialMode));
   return {
     id: String(row.id),
     title: text(row.title) ?? 'Topic',
@@ -604,39 +658,45 @@ function toTopic(row: Record<string, unknown>): AwarenessTopic {
     clay: 'lavender',
     icon: text(row.iconKey) ?? 'book',
     imageUrl: text(row.imageUrl),
-    access: decision(row.access, text(row.commercialMode)),
+    access,
     schema,
     summaryChips: Array.isArray(row.summaryChips) ? row.summaryChips.map(String) : undefined,
-    entries: asRows(row.entries).map(entry => ({
-      id: String(entry.id),
-      label: text(entry.label) ?? '',
-      value: text(entry.value) ?? text(entry.text) ?? '',
-      group: text(entry.group),
-      iconColor: text(entry.iconColor),
-    })),
+    entries: access.state === 'granted'
+      ? asRows(row.entries).map(entry => ({
+          id: String(entry.id),
+          label: text(entry.label) ?? '',
+          value: text(entry.value) ?? text(entry.text) ?? '',
+          group: text(entry.group),
+          iconColor: text(entry.iconColor),
+        }))
+      : [],
   };
 }
 
 function toFact(row: Record<string, unknown>): Fact {
+  const access = decision(row.access, text(row.commercialMode));
   return {
     id: String(row.id),
     categoryId: text(row.categoryId) ?? 'facts',
     text: text(row.text) ?? text(row.title) ?? '',
-    explanation: text(row.explanation),
+    explanation: access.state === 'granted' ? text(row.explanation) : undefined,
     reactionCount: typeof row.reactionCount === 'number' ? row.reactionCount : 0,
     reacted: Boolean(row.reacted),
     bookmarked: Boolean(row.bookmarked),
     featured: Boolean(row.featured),
     quizId: text(row.quizId) ?? text(row.relatedQuizId),
+    access,
   };
 }
 
 function toInterviewQuestion(row: Record<string, unknown>): InterviewQuestion {
+  const access = decision(row.access, text(row.commercialMode));
   return {
     id: String(row.id),
     categoryId: text(row.categoryId) ?? 'interview',
     prompt: text(row.prompt) ?? text(row.question) ?? text(row.title) ?? '',
-    modelAnswer: text(row.modelAnswer) ?? text(row.answer),
+    modelAnswer: access.state === 'granted' ? text(row.modelAnswer) ?? text(row.answer) : undefined,
+    access,
   };
 }
 
@@ -812,6 +872,102 @@ async function publishedLiveClasses(fromIso?: string, toIso?: string): Promise<L
   return payload ? asRows(payload).map(toLiveClass) : [];
 }
 
+const NOTIFICATION_CATEGORIES = new Set<NotificationCategory>(['classes', 'tests', 'news', 'offers', 'system']);
+const NOTIFICATION_TARGETS = new Set<ContentKind>([
+  'course', 'lesson', 'test', 'news', 'fact', 'topic', 'interviewQuestion',
+  'interviewCategory', 'liveClass', 'document', 'exam', 'section',
+]);
+
+/** Set only after this account's inbox route is missing, so another learner still tries the API. */
+let localInboxAccount: string | null = null;
+
+function toNotification(row: Record<string, unknown>): NotificationItem {
+  const categoryText = text(row.category);
+  const category = categoryText && NOTIFICATION_CATEGORIES.has(categoryText as NotificationCategory)
+    ? categoryText as NotificationCategory
+    : 'system';
+  const targetRow = row.target && typeof row.target === 'object' ? row.target as Record<string, unknown> : undefined;
+  const kind = text(targetRow?.kind);
+  const targetId = text(targetRow?.id);
+  const source = row.source === 'admin' || row.source === 'automatic' ? row.source : undefined;
+  return {
+    id: text(row.id) ?? `notification-${text(row.createdAt) ?? 'item'}`,
+    title: text(row.title) ?? 'Notification',
+    body: text(row.body) ?? '',
+    createdAt: text(row.createdAt) ?? new Date().toISOString(),
+    read: Boolean(row.read),
+    category,
+    source,
+    priority: row.priority === 'high' ? 'high' : 'normal',
+    actionLabel: text(row.actionLabel),
+    target: kind && targetId && NOTIFICATION_TARGETS.has(kind as ContentKind)
+      ? {kind: kind as ContentKind, id: targetId}
+      : undefined,
+  };
+}
+
+async function learnerNotifications(cursor?: string, category?: string): Promise<Page<NotificationItem>> {
+  const params: Record<string, string> = {};
+  if (cursor) params.cursor = cursor;
+  if (category && category !== 'all') params.category = category;
+  try {
+    const payload = await get<unknown>('/me/notifications', Object.keys(params).length ? params : undefined);
+    if (localInboxAccount === accountKey()) localInboxAccount = null;
+    return pageOf(payload, toNotification);
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) {
+      localInboxAccount = accountKey();
+      return localNotificationPage(accountKey(), await publishedLiveClasses().catch(() => []), category);
+    }
+    throw error;
+  }
+}
+
+async function markLearnerNotificationRead(id: string): Promise<void> {
+  if (id.startsWith('local-') || localInboxAccount === accountKey()) {
+    await markLocalNotificationRead(accountKey(), id);
+    return;
+  }
+  try {
+    await patch(`/me/notifications/${encodeURIComponent(id)}`, {read: true});
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) {
+      localInboxAccount = accountKey();
+      await markLocalNotificationRead(accountKey(), id);
+      return;
+    }
+    throw error;
+  }
+}
+
+async function clearLearnerNotifications(): Promise<{mode: 'archive' | 'mark_read'}> {
+  if (localInboxAccount === accountKey()) {
+    await markAllLocalNotificationsRead(accountKey(), await publishedLiveClasses().catch(() => []));
+    return {mode: 'mark_read'};
+  }
+  try {
+    const result = await post<{mode?: string} | undefined>('/me/notifications/clear');
+    return {mode: result && typeof result === 'object' && result.mode === 'archive' ? 'archive' : 'mark_read'};
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) {
+      localInboxAccount = accountKey();
+      await markAllLocalNotificationsRead(accountKey(), await publishedLiveClasses().catch(() => []));
+      return {mode: 'mark_read'};
+    }
+    throw error;
+  }
+}
+
+async function unreadNotificationCount(): Promise<number> {
+  if (!tokenStore.getAccessToken()) return 0;
+  try {
+    const page = await learnerNotifications();
+    return page.items.filter(item => !item.read).length;
+  } catch {
+    return 0;
+  }
+}
+
 export function createHttpRepositories(): Repositories {
   const fetchProfile = async () => toProfile(await get<ApiLearner>('/me'));
 
@@ -838,9 +994,20 @@ export function createHttpRepositories(): Repositories {
           ...(normalizePhone(input.phone) ? {phone: normalizePhone(input.phone)} : {}),
           ...(input.city?.trim() ? {city: input.city.trim()} : {}),
         };
-        return toSession(await post<ApiAuth>('/auth/register', body));
+        const started = await post<ApiAuth & {challengeId?: string}>('/auth/register', body);
+        const challengeId = started.challengeId?.trim();
+        if (challengeId) return {challengeId};
+        if (started.accessToken) {
+          return Promise.reject({
+            code: 'verification_required',
+            message: 'A verification code has to be sent to your email before the account is created. This server did not send one.',
+            retryable: false,
+          });
+        }
+        return unavailable('Email verification');
       },
-      verifyChallenge: () => unavailable('Contact verification'),
+      verifyChallenge: async (challengeId, code) =>
+        toSession(await post<ApiAuth>(`/auth/challenges/${encodeURIComponent(challengeId)}/verify`, {code})),
       forgotPassword: () => unavailable('Password recovery'),
       verifyResetCode: () => unavailable('Password recovery'),
       resetPassword: () => unavailable('Password recovery'),
@@ -867,9 +1034,10 @@ export function createHttpRepositories(): Repositories {
     catalog: {
       home: async () => {
         const signedIn = Boolean(tokenStore.getAccessToken());
-        const [home, liveClasses] = await Promise.all([
+        const [home, liveClasses, unreadNotifications] = await Promise.all([
           get<ApiHome>(signedIn ? '/home/me' : '/home'),
           publishedLiveClasses().catch(() => [] as LiveClass[]),
+          signedIn ? unreadNotificationCount() : Promise.resolve(0),
         ]);
         return {
           greetingName: undefined,
@@ -896,7 +1064,7 @@ export function createHttpRepositories(): Repositories {
             lessonLabel: current.title,
             percent: current.progressPct,
           })),
-          unreadNotifications: 0,
+          unreadNotifications,
         };
       },
       list: async query => {
@@ -1009,7 +1177,7 @@ export function createHttpRepositories(): Repositories {
           : current.filter(item => item.ref.kind !== ref.kind || item.ref.id !== ref.id);
         await setAccountScoped(account, 'bookmarks', next);
       },
-      semesters: () => Promise.resolve([]),
+      semesters: () => unavailable('Semester learning'),
       semester: () => unavailable('Semester learning'),
       submitReview: () => unavailable('Semester review'),
       project: () => unavailable('Projects'),
@@ -1017,22 +1185,76 @@ export function createHttpRepositories(): Repositories {
     },
     assessments: {
       tests: async examId => {
-        const payload = await getOptional<unknown>('/tests', examId ? {examId} : undefined);
-        return payload ? asRows(payload).map(toTest) : [];
+        try {
+          const payload = await get<unknown>('/tests', examId ? {examId} : undefined);
+          return asRows(payload).map(toTest);
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Tests');
+          throw error;
+        }
       },
       test: async id => toTest(await get<Record<string, unknown>>(`/tests/${id}`)),
-      startAttempt: async testId => toAttempt(await post<Record<string, unknown>>(`/tests/${testId}/attempts`)),
-      attempt: async id => toAttempt(await get<Record<string, unknown>>(`/attempts/${id}`)),
-      saveAnswer: (attemptId, questionId, optionId, revision) =>
-        put<{revision: number}>(`/attempts/${attemptId}/answers/${questionId}`, {optionId, revision}),
-      submit: async (attemptId, revision) => toResult(await post<Record<string, unknown>>(`/attempts/${attemptId}/submit`, {revision})),
-      result: async attemptId => toResult(await get<Record<string, unknown>>(`/attempts/${attemptId}/result`)),
+      startAttempt: async testId => {
+        try {
+          return toAttempt(await post<Record<string, unknown>>(`/tests/${testId}/attempts`, {}));
+        } catch (error) {
+          // Production still has no learner attempt routes (POST 404). Be honest instead of "retry".
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Starting this test');
+          throw error;
+        }
+      },
+      attempt: async id => {
+        try {
+          return toAttempt(await get<Record<string, unknown>>(`/attempts/${id}`));
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('This attempt');
+          throw error;
+        }
+      },
+      saveAnswer: async (attemptId, questionId, optionId, revision) => {
+        try {
+          return await put<{revision: number}>(`/attempts/${attemptId}/answers/${questionId}`, {optionId, revision});
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Saving answers');
+          throw error;
+        }
+      },
+      submit: async (attemptId, revision) => {
+        try {
+          return toResult(await post<Record<string, unknown>>(`/attempts/${attemptId}/submit`, {revision}));
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Submitting this test');
+          throw error;
+        }
+      },
+      result: async attemptId => {
+        try {
+          const row = await get<Record<string, unknown>>(`/attempts/${attemptId}/result`);
+          if (!isPublishedResult(row)) return unavailable('Test results');
+          return toResult(row);
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Test results');
+          throw error;
+        }
+      },
       history: async () => {
         if (!tokenStore.getAccessToken()) return [];
-        const payload = await getOptional<unknown>('/me/attempts');
-        return payload ? asRows(payload).map(toResult) : [];
+        try {
+          const payload = await get<unknown>('/me/attempts');
+          return asRows(payload).filter(isPublishedResult).map(toResult);
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Test results');
+          throw error;
+        }
       },
-      dailyPractice: kind => get<{testId: string}>('/practice/daily', {kind}),
+      dailyPractice: async kind => {
+        try {
+          return await get<{testId: string}>('/practice/daily', {kind});
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Daily practice');
+          throw error;
+        }
+      },
     },
     content: {
       news: async (categoryId, cursor) => {
@@ -1057,8 +1279,16 @@ export function createHttpRepositories(): Repositories {
       schedule: (fromIso, toIso) => publishedLiveClasses(fromIso, toIso),
       get: async id => toLiveClass(await get<Record<string, unknown>>(`/live-classes/${id}`)),
       join: async id => {
-        const row = await post<{playbackUrl?: string; chatAvailable?: boolean; expiresAt?: string}>(`/live-classes/${id}/join`);
-        return {playbackUrl: row.playbackUrl, chatAvailable: Boolean(row.chatAvailable), expiresAt: row.expiresAt};
+        try {
+          const row = await post<{playbackUrl?: string; chatAvailable?: boolean; expiresAt?: string}>(`/live-classes/${id}/join`);
+          // Chat stays off until join, schedule, and the classroom provider are stable.
+          return {playbackUrl: row.playbackUrl, chatAvailable: false, expiresAt: row.expiresAt};
+        } catch (error) {
+          if (isAppError(error) && (error.httpStatus === 404 || error.httpStatus === 409)) {
+            return unavailable('Joining this class');
+          }
+          throw error;
+        }
       },
       setHand: (id, raised) => put<{raised: boolean}>(`/live-classes/${id}/hand`, {raised}),
       setReminder: (id, enabled) => put(`/live-classes/${id}/reminder`, {enabled}).then(() => undefined),
@@ -1078,12 +1308,16 @@ export function createHttpRepositories(): Repositories {
       },
     },
     commerce: {
-      restore: () => unavailable('Purchases'),
-      quote: () => unavailable('Purchases'),
-      createOrder: () => unavailable('Purchases'),
-      getOrder: () => unavailable('Purchases'),
-      verify: () => unavailable('Purchases'),
-      history: () => Promise.resolve([]),
+      restore: purchases => post<Order[]>('/payments/restore', {provider: 'play_billing', purchases}),
+      quote: (productId, coupon) => post<Order['quote'] & {productId: string; title: string}>('/checkout/quote', {productId, ...(coupon ? {coupon} : {})}),
+      createOrder: (productId, coupon, idempotencyKey, method) => post<Order>('/orders', {
+        productId,
+        ...(coupon ? {coupon} : {}),
+        ...(method ? {method} : {}),
+      }, idempotencyKey ? {'Idempotency-Key': idempotencyKey} : undefined),
+      getOrder: id => get<Order>(`/orders/${id}`),
+      verify: (orderId, providerPayload) => post<Order>('/payments/verify', {orderId, ...providerPayload}),
+      history: () => get<Order[]>('/me/orders'),
       entitlements: async () => {
         const rows = await get<Array<{courseId?: string | null; scopeRef?: string; state: string; canDownload: boolean; canPreview: boolean; endsAt?: string | null}>>('/me/entitlements');
         return rows.map(row => ({
@@ -1100,9 +1334,9 @@ export function createHttpRepositories(): Repositories {
     },
     account: {
       requestDeletion: () => unavailable('Account deletion'),
-      notifications: () => Promise.resolve(emptyPage()),
-      markRead: async () => undefined,
-      clearAll: async () => ({mode: 'mark_read'}),
+      notifications: (cursor, category) => learnerNotifications(cursor, category),
+      markRead: id => markLearnerNotificationRead(id),
+      clearAll: () => clearLearnerNotifications(),
       registerPushDevice: async () => undefined,
       unregisterPushDevice: async () => undefined,
       documents: async kind => {
@@ -1136,9 +1370,14 @@ export function createHttpRepositories(): Repositories {
               status: auth.playback.status,
             }
           : null;
+        const deliveryUrl = auth.delivery?.url ?? '';
+        const playbackUrl = auth.playback?.url;
+        if (!deliveryUrl && !(auth.kind === 'video' && playbackUrl)) {
+          throw new Error('This file cannot be downloaded yet. The server confirmed access but did not send the file.');
+        }
         const mapped = {
           resourceId: auth.resourceId,
-          url: auth.delivery?.url ?? '',
+          url: deliveryUrl,
           expiresAt: auth.delivery?.expiresAt ?? auth.offlineAuthorization?.validUntil ?? new Date(0).toISOString(),
           offlineUntil: auth.offlineAuthorization?.validUntil,
           sha256: auth.delivery?.integrity?.hash,
@@ -1195,8 +1434,22 @@ export function createHttpRepositories(): Repositories {
           progress: row.available ? 1 : 0,
         }));
       },
-      support: () => unavailable('Support content'),
-      legal: () => unavailable('Legal content'),
+      support: async () => {
+        const remote = await getOptional<{faqs?: {q?: string; a?: string}[]; email?: string; phone?: string}>('/support');
+        const faqs = (remote?.faqs ?? [])
+          .map(item => ({q: item.q?.trim() ?? '', a: item.a?.trim() ?? ''}))
+          .filter(item => item.q && item.a);
+        if (faqs.length) return {faqs, email: remote?.email, phone: remote?.phone};
+        return STATIC_SUPPORT;
+      },
+      legal: async slug => {
+        const row = await get<{title?: string; body?: string | string[]}>(`/legal/${encodeURIComponent(slug)}`);
+        const body = Array.isArray(row.body)
+          ? row.body.filter((part): part is string => typeof part === 'string' && part.trim().length > 0).join('\n\n')
+          : (row.body ?? '').trim();
+        const fallback = slug === 'privacy' ? 'Privacy policy' : slug === 'terms' ? 'Terms of use' : 'Legal';
+        return {title: row.title?.trim() || fallback, body};
+      },
     },
   };
 }

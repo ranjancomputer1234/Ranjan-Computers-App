@@ -10,8 +10,8 @@ import {
   View,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
-import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
 import {useInfiniteQuery} from '@tanstack/react-query';
+import {useEnrolledCourseIds} from '../../features/catalog/useEnrolledCourseIds';
 import {useRepositories} from '../../core/di';
 import {queryKeys} from '../../core/query';
 import {colors, space} from '../../theme';
@@ -44,6 +44,7 @@ export function CatalogScreen() {
   const deferredSearch = useDeferredValue(search);
   const {width, fontScale} = useWindowDimensions();
   const isCourseCatalog = cfg.kind === 'course';
+  const {ids: enrolledIds} = useEnrolledCourseIds();
   const columns = width < 360 || fontScale > 1.25 ? 1 : 2;
   const query = useInfiniteQuery({
     queryKey: queryKeys.catalog(cfg.kind, {search: deferredSearch, pricing}),
@@ -65,7 +66,7 @@ export function CatalogScreen() {
         showBack={navigation.canGoBack()}
         onBack={() => navigation.goBack()}
         onSearch={() => navigation.navigate('Search')}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
       <FlatList
         {...pullRefresh.scrollProps}
@@ -122,7 +123,13 @@ export function CatalogScreen() {
         renderItem={({item}) => (
           <View style={styles.cell}>
             {isCourseCatalog ? (
-              <CourseCatalogCard item={item} onPress={() => cfg.onOpen(navigation, item.targetId ?? item.id)} />
+              <CourseCatalogCard
+                item={{
+                  ...item,
+                  enrolled: Boolean((item as {enrolled?: boolean}).enrolled) || enrolledIds.has(item.id),
+                }}
+                onPress={() => cfg.onOpen(navigation, item.targetId ?? item.id)}
+              />
             ) : (
               <CategoryCard item={item} onPress={() => cfg.onOpen(navigation, item.targetId ?? item.id)} />
             )}

@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { Icon, type IconName } from '../../assets/icons';
 import { BrandedHeader, Screen } from '../../components/layout/Screen';
@@ -266,7 +265,7 @@ export function AmazingFactsScreen() {
         showBack
         onBack={() => navigation.goBack()}
         onSearch={() => navigation.navigate('Search', { query: 'facts' })}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
       <FlatList
         {...pullRefresh.scrollProps}

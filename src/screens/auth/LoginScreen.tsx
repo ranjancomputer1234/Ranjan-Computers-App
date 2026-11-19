@@ -114,6 +114,16 @@ export function LoginScreen() {
                 </Pressable>
               </View>
               {passwordError ? <AppText size={12} color={colors.error}>{passwordError}</AppText> : null}
+              <Pressable
+                onPress={() => navigation.navigate('ForgotPassword')}
+                accessibilityRole="button"
+                accessibilityLabel={tx('Forgot password?')}
+                hitSlop={8}
+                style={styles.forgotLink}>
+                <AppText weight="700" size={13} color={colors.primary}>
+                  {tx('Forgot password?')}
+                </AppText>
+              </Pressable>
             </View>
 
             <Pressable

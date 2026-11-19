@@ -9,7 +9,6 @@ import {Gradient} from '../../components/ui/Gradient';
 import {Screen} from '../../components/layout/Screen';
 import {useRepositories} from '../../core/di';
 import {useAsyncAction} from '../../core/useAsyncAction';
-import {useSessionStore} from '../../core/session';
 import type {RootStackParamList} from '../../navigation/types';
 import {colors, gradients} from '../../theme';
 import {styles} from './styles';
@@ -100,15 +99,16 @@ export function RegisterScreen() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    const address = email.trim().toLowerCase();
     const result = await repos.auth.register({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.trim().toLowerCase(),
+      email: address,
       phone: phone || undefined,
       city: city.trim(),
       password,
     });
-    await useSessionStore.getState().setAuthenticated(result.tokens, result.profile);
+    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'register', sentTo: address});
   });
 
   return (
@@ -278,7 +278,7 @@ export function RegisterScreen() {
             style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, register.busy && styles.disabled]}>
             <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
               <AppText weight="700" size={16} color="#fff" center>
-                {register.busy ? 'Creating your account…' : 'Create account'}
+                {register.busy ? 'Sending code…' : 'Send verification code'}
               </AppText>
             </Gradient>
           </Pressable>

@@ -10,6 +10,7 @@ import {
   reminderIsDue,
   transactionSubtitle,
   videoBitRate,
+  videoInitialBitRate,
   videoQualitySubtitle,
 } from '../src/features/settings/preferences';
 import {resolveColorScheme} from '../src/theme';
@@ -21,6 +22,9 @@ describe('settings copy helpers', () => {
     expect(videoQualitySubtitle('Data saver')).toBe('Data saver');
     expect(videoBitRate('Data saver')).toBe(700000);
     expect(videoBitRate('Auto')).toBe(0);
+    expect(videoInitialBitRate('Data saver')).toBeLessThan(700000);
+    expect(videoInitialBitRate('High quality')).toBeLessThan(5_000_000);
+    expect(videoInitialBitRate('Auto')).toBeGreaterThan(0);
   });
 
   it('formats the HTML reminder time', () => {

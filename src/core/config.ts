@@ -81,7 +81,7 @@ export const appConfig: AppConfig = {
   seedAccounts: __DEV__ ? seedAccounts(native) : [],
   privacyPolicyUrl: native.privacyPolicyUrl || undefined,
   accountDeletionUrl: native.accountDeletionUrl || undefined,
-  versionName: native.versionName || '1.0.0',
+  versionName: native.versionName || '1.0.2',
   googleWebClientId: native.googleWebClientId || undefined,
   speechRecognitionEnabled: false,
   pushProvider: Platform.OS === 'android' && native.firebaseEnabled ? 'fcm' : 'none',

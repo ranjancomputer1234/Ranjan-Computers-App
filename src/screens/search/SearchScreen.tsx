@@ -32,10 +32,12 @@ import { Icon, type IconName } from '../../assets/icons';
 import { speechService } from '../../core/services';
 import type { HomeNav } from '../../navigation/types';
 import { virtualizedListPerformanceProps } from '../../components/layout/listPerformance';
-import type { CatalogItem } from '../../core/types';
+import {coursePriceLabel} from '../../features/catalog/coursePrice';
+import {useEnrolledCourseIds} from '../../features/catalog/useEnrolledCourseIds';
+import type { CatalogItem, Money } from '../../core/types';
 import { usePullRefreshFeedback } from '../../components/ui/AppRefreshControl';
 
-type SearchResult = CatalogItem & { badge: string };
+type SearchResult = CatalogItem & { badge: string; price?: Money; purchased?: boolean; enrolled?: boolean };
 type SearchType = 'COURSE' | 'TEST' | 'LIVE' | 'NEWS' | 'FACT' | 'INTERVIEW';
 
 const SEARCH_TYPES: { label: string; value?: SearchType }[] = [
@@ -86,6 +88,11 @@ function SearchResultCard({
         {item.subtitle ? (
           <AppText size={9.5} color={colors.text2} numberOfLines={1}>
             {item.subtitle}
+          </AppText>
+        ) : null}
+        {item.kind === 'course' && (item.enrolled || item.pricing === 'paid') ? (
+          <AppText weight="800" size={10} color={item.enrolled ? colors.success : colors.orange} translate={false}>
+            {coursePriceLabel(item)}
           </AppText>
         ) : null}
       </View>
@@ -149,6 +156,7 @@ export function SearchScreen() {
   const [type, setType] = useState<SearchType | undefined>();
   const [showFilters, setShowFilters] = useState(false);
   const repos = useRepositories();
+  const {ids: enrolledIds} = useEnrolledCourseIds();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebounced(q.trim()), 300);
@@ -200,7 +208,7 @@ export function SearchScreen() {
     if (!speechService.available) {
       Alert.alert(
         'Voice search unavailable',
-        'Voice search is not configured in this build. You can still type a course, test, or topic.',
+        'Voice search is not configured in this build. You can still type a course or lesson.',
       );
       return;
     }
@@ -234,10 +242,16 @@ export function SearchScreen() {
   });
 
   const results = useMemo(
-    () => search.data?.pages.flatMap(page => page.items) ?? [],
-    [search.data],
+    () =>
+      (search.data?.pages.flatMap(page => page.items) ?? []).map(item =>
+        item.kind === 'course'
+          ? {...item, enrolled: Boolean((item as {enrolled?: boolean}).enrolled) || enrolledIds.has(item.id)}
+          : item,
+      ),
+    [enrolledIds, search.data],
   );
   const total = search.data?.pages[0]?.total ?? results.length;
+  const scopeLabel = type === 'COURSE' ? 'Courses' : 'Courses & lessons';
 
   const open = async (item: SearchResult) => {
     await rememberSearch(debounced);
@@ -344,25 +358,27 @@ export function SearchScreen() {
                     Find your next lesson
                   </AppText>
                   <AppText size={12} color={colors.text2} center>
-                    Search the courses and lessons currently published by RACI.
+                    Search covers courses and lessons. Other catalogues are not included yet.
                   </AppText>
                 </View>
               </View>
             ) : (
               <>
                 <View style={styles.sectionTitleRow}>
-                  <AppText
-                    weight="800"
-                    size={16.5}
-                    color={colors.navy}
-                    style={styles.resultTitle}
-                  >
-                    {search.isLoading
-                      ? 'Searching…'
-                      : `${total} ${
-                          total === 1 ? 'result' : 'results'
-                        } for “${debounced}”`}
-                  </AppText>
+                  <View style={styles.resultTitle}>
+                    <AppText weight="800" size={16.5} color={colors.navy}>
+                      {search.isLoading
+                        ? `Searching ${scopeLabel.toLowerCase()}…`
+                        : `${total} ${
+                            total === 1 ? 'result' : 'results'
+                          } · ${scopeLabel}`}
+                    </AppText>
+                    {!search.isLoading ? (
+                      <AppText size={11} color={colors.text2}>
+                        for “{debounced}”
+                      </AppText>
+                    ) : null}
+                  </View>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityState={{ expanded: showFilters }}
@@ -417,10 +433,12 @@ export function SearchScreen() {
           hasQuery && !search.isLoading && !search.isError ? (
             <EmptyState
               title="No matches found"
-              body={`Try a shorter search, another spelling, or remove the ${
-                type?.toLowerCase() ?? 'active'
-              } filter.`}
-              actionLabel={type ? 'Show all types' : 'Clear search'}
+              body={
+                type
+                  ? 'This filter only includes courses. Show all to include lessons too.'
+                  : 'Search covers courses and lessons. Try a shorter name or another spelling.'
+              }
+              actionLabel={type ? 'Show courses and lessons' : 'Clear search'}
               onAction={() => (type ? setType(undefined) : setQ(''))}
             />
           ) : undefined

@@ -23,3 +23,7 @@ export async function writePurchase(owner: string, state: PurchaseState) {
 export async function clearPurchase(owner: string, orderId: string) {
   if ((await readPurchase(owner))?.orderId === orderId) await AsyncStorage.removeItem(storageKey(owner));
 }
+export async function clearUnplacedPurchase(owner: string) {
+  const current = await readPurchase(owner).catch(() => null);
+  if (current && !current.orderId) await AsyncStorage.removeItem(storageKey(owner));
+}
