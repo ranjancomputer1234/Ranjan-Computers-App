@@ -16,6 +16,7 @@ import {queryClient} from '../../core/query';
 import {useResource} from '../../core/useResource';
 import {usePreferencesStore} from '../../features/settings/preferencesStore';
 import {videoBitRate, videoInitialBitRate} from '../../features/settings/preferences';
+import {playableStream} from '../../core/playback';
 
 export function LessonPlayerScreen() {
   const navigation = useNavigation<HomeNav>();
@@ -41,8 +42,7 @@ export function LessonPlayerScreen() {
       return Math.max(15_000, (seconds - 30) * 1000);
     },
   });
-  const stream = playback.data?.playback;
-  const streamUrl = stream?.url && (stream.type === 'mux_hls' || stream.type === 'cloudinary_hls') ? stream.url : undefined;
+  const stream = playableStream(playback.data?.playback);
   const complete = useMutation({mutationFn: () => repos.learning.completeLesson(lessonId), onSuccess: () => queryClient.invalidateQueries()});
   const resource = useResource();
   const saveProgress = useCallback((currentTime: number, duration: number) => {
@@ -60,13 +60,13 @@ export function LessonPlayerScreen() {
   return (
     <Screen padded={false}>
       <View style={styles.player}>
-        {streamUrl && lesson.data?.state !== 'locked' ? (
+        {stream && lesson.data?.state !== 'locked' ? (
           <MediaPlayer
-            uri={streamUrl}
+            uri={stream.url}
             sessionKey={lessonId}
             reloadToken={reloadToken}
             active={focused && !playbackError}
-            mediaType="m3u8"
+            mediaType={stream.mediaType}
             maxBitRate={videoBitRate(quality)}
             initialBitrate={videoInitialBitRate(quality)}
             badge={quality}
@@ -106,7 +106,7 @@ export function LessonPlayerScreen() {
               </> : null}</ClayCard>
             )) : null}
             {lesson.data.hasMedia && !videoResource ? <AppText size={12} color={colors.text2}>This lesson has media, but the catalogue has not attached a resource id yet.</AppText> : null}
-            {stream && !streamUrl ? <AppText size={12} color={colors.text2}>{stream.status === 'not_ready_or_signing_not_configured' ? 'This video is not ready to play yet.' : 'This video cannot be played inside the app yet.'}</AppText> : null}
+            {playback.data?.playback?.url && !stream ? <AppText size={12} color={colors.text2}>{playback.data.playback.status === 'not_ready_or_signing_not_configured' ? 'This video is not ready to play yet.' : 'This video cannot be played inside the app yet.'}</AppText> : null}
             {playback.isError ? <AppText color={colors.error}>Video access could not be authorized.</AppText> : null}
             {tab === 'Docs' && !lesson.data.resources.length ? <AppText>No resources have been added yet.</AppText> : null}
             {resource.error ? <AppText color={colors.error}>{resource.error}</AppText> : null}

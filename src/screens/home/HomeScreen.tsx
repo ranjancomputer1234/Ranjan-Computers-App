@@ -6,7 +6,6 @@ import {
   Image,
   Pressable,
   ScrollView,
-  useWindowDimensions,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -27,7 +26,6 @@ import { BrandedHeader, Screen } from '../../components/layout/Screen';
 import { CourseCatalogCard } from '../../components/content/Cards';
 import { ExploreHomeGrid } from '../../components/content/ExploreOptions';
 import { Gradient } from '../../components/ui/Gradient';
-import { BooksArt, Chalkboard, TeacherArt } from '../../assets/illustrations';
 import { Icon } from '../../assets/icons';
 import type { HomeNav } from '../../navigation/types';
 import type { HomeDashboard, LiveClass } from '../../core/types';
@@ -55,9 +53,17 @@ function liveTimeLabel(item: LiveClass) {
 }
 
 function liveActionLabel(item: LiveClass) {
-  if (item.status === 'ended' && item.recordingAvailable) return 'Watch Replay';
-  if (item.status === 'scheduled') return 'View Class';
-  return 'Join Now';
+  if (item.status === 'ended' && item.recordingAvailable) return 'Replay';
+  if (item.status === 'ended') return 'Ended';
+  if (item.status === 'scheduled') return 'View';
+  if (item.status === 'cancelled') return 'Cancelled';
+  return 'Join';
+}
+
+function liveBadgeLabel(item: LiveClass) {
+  if (item.status === 'ended') return 'RECORDING';
+  if (item.status === 'cancelled') return 'CANCELLED';
+  return 'LIVE CLASS';
 }
 
 type HomeBanner = HomeDashboard['banners'][number];
@@ -255,7 +261,6 @@ function BannerSlide({
 
 export function HomeScreen() {
   const navigation = useNavigation<HomeNav>();
-  const { width } = useWindowDimensions();
   const { status, homeQuery, name, liveClasses } = useHomeDashboard();
   const pullRefresh = usePullRefreshFeedback({
     refreshing: homeQuery.isRefetching && !homeQuery.isLoading,
@@ -263,9 +268,9 @@ export function HomeScreen() {
       homeQuery.refetch().catch(() => undefined);
     },
   });
+  const [liveTrack, setLiveTrack] = React.useState(0);
   const [activeLive, setActiveLive] = React.useState(0);
   const liveRef = React.useRef<ScrollViewInstance>(null);
-  const bannerWidth = Math.max(288, Math.min(width, 760) - space.pageX * 2);
   const continuing = homeQuery.data?.continueLearning ?? [];
   const featuredCourses = homeQuery.data?.featuredCourses ?? [];
   const { ids: enrolledIds } = useEnrolledCourseIds();
@@ -274,6 +279,17 @@ export function HomeScreen() {
   React.useEffect(() => {
     if (activeLive >= liveClasses.length) setActiveLive(0);
   }, [activeLive, liveClasses.length]);
+
+  const settleLivePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (liveTrack <= 0) return;
+    const index = Math.round(event.nativeEvent.contentOffset.x / liveTrack);
+    setActiveLive(Math.min(liveClasses.length - 1, Math.max(0, index)));
+  };
+
+  const showLivePage = (index: number) => {
+    setActiveLive(index);
+    liveRef.current?.scrollTo({x: index * liveTrack, animated: true});
+  };
 
   const openResume = React.useCallback((item: (typeof continuing)[number]) => {
     navigation.navigate('LessonPlayer', {
@@ -298,15 +314,6 @@ export function HomeScreen() {
       { text: 'Cancel', style: 'cancel' },
     ]);
   }, [navigation, openResume]);
-
-  const updateLivePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    setActiveLive(Math.round(event.nativeEvent.contentOffset.x / bannerWidth));
-  };
-
-  const showLivePage = (index: number) => {
-    setActiveLive(index);
-    liveRef.current?.scrollTo({ x: index * bannerWidth, animated: true });
-  };
 
   return (
     <Screen padded={false} pullGestureHandlers={pullRefresh.gestureHandlers}>
@@ -394,109 +401,117 @@ export function HomeScreen() {
             onRetry={() => homeQuery.refetch()}
           />
         ) : liveClasses.length ? (
-          <View style={styles.liveSection}>
-            <ScrollView
-              ref={liveRef}
-              horizontal
-              pagingEnabled
-              nestedScrollEnabled
-              decelerationRate="fast"
-              snapToInterval={bannerWidth}
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={updateLivePage}
-              accessibilityLabel="Live classes carousel"
-            >
-              {liveClasses.map(item => (
-                <View key={item.id} style={{ width: bannerWidth }}>
-                  <Gradient
-                    colors={gradients.banner}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.banner}
-                  >
-                    <View style={styles.bleft}>
-                      <View style={styles.bltop}>
-                        <View style={styles.livePulse}>
-                          <View style={styles.livedot} />
+          <View
+            style={styles.liveSection}
+            onLayout={event => {
+              const next = Math.round(event.nativeEvent.layout.width);
+              setLiveTrack(current => (current === next ? current : next));
+            }}
+          >
+            {liveTrack > 0 ? (
+              <ScrollView
+                ref={liveRef}
+                horizontal
+                pagingEnabled
+                nestedScrollEnabled
+                scrollEnabled={liveClasses.length > 1}
+                decelerationRate="fast"
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={settleLivePage}
+                accessibilityLabel="Live classes"
+              >
+                {liveClasses.map(item => {
+                const closed = item.status === 'cancelled';
+                  return (
+                    <View key={item.id} style={[styles.livePage, { width: liveTrack }]}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${liveActionLabel(item)}: ${item.title}`}
+                      accessibilityState={{ disabled: closed }}
+                      disabled={closed}
+                      onPress={() =>
+                        navigation.navigate('LiveRoom', { liveClassId: item.id })
+                      }
+                      style={({ pressed }) => [
+                        styles.liveCard,
+                        pressed && !closed && styles.pressed,
+                      ]}
+                    >
+                      <Gradient
+                        colors={gradients.banner}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.banner}
+                      >
+                        <View style={styles.bleft}>
+                          <View style={styles.titleRow}>
+                            <View
+                              style={[
+                                styles.livePulse,
+                                (item.status === 'ended' || closed) && styles.livePulseIdle,
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.livedot,
+                                  (item.status === 'ended' || closed) && styles.livedotIdle,
+                                ]}
+                              />
+                            </View>
+                            <AppText
+                              weight="800"
+                              size={14}
+                              color="#fff"
+                              numberOfLines={1}
+                              translate={false}
+                              style={styles.liveTitle}
+                            >
+                              {item.title}
+                            </AppText>
+                          </View>
+                          <View style={styles.metaRow}>
+                            <Gradient colors={gradients.orangeCta} style={styles.pill}>
+                              <AppText
+                                weight="800"
+                                size={8}
+                                color="#fff"
+                                style={styles.liveLabel}
+                              >
+                                {liveBadgeLabel(item)}
+                              </AppText>
+                            </Gradient>
+                            <Icon name="cal" size={11} color="rgba(255,255,255,0.78)" />
+                            <AppText
+                              size={10.5}
+                              weight="600"
+                              color="rgba(255,255,255,0.82)"
+                              style={styles.timeText}
+                              numberOfLines={1}
+                            >
+                              {liveTimeLabel(item)}
+                            </AppText>
+                          </View>
                         </View>
                         <Gradient
-                          colors={gradients.orangeCta}
-                          style={styles.pill}
+                          colors={closed ? ['#90A4AE', '#78909C'] : gradients.orangeCta}
+                          style={styles.liveChip}
                         >
-                          <AppText
-                            weight="800"
-                            size={9}
-                            color="#fff"
-                            style={styles.liveLabel}
-                          >
-                            {item.status === 'ended'
-                              ? 'RECORDING'
-                              : 'LIVE CLASS'}
+                          <AppText weight="800" size={11} color="#fff">
+                            {liveActionLabel(item)}
                           </AppText>
+                          {closed ? null : (
+                            <Icon name="chev" size={12} color="#fff" />
+                          )}
                         </Gradient>
-                      </View>
-                      <AppText
-                        weight="900"
-                        size={19}
-                        color="#fff"
-                        numberOfLines={2}
-                      >
-                        {item.title}
-                      </AppText>
-                      <View style={styles.time}>
-                        <Icon
-                          name="cal"
-                          size={13}
-                          color="rgba(255,255,255,0.85)"
-                        />
-                        <AppText
-                          size={10.5}
-                          weight="600"
-                          color="rgba(255,255,255,0.85)"
-                          style={styles.timeText}
-                          numberOfLines={1}
-                        >
-                          {liveTimeLabel(item)}
-                        </AppText>
-                      </View>
-                      <ClayButton
-                        label={liveActionLabel(item)}
-                        tone="orange"
-                        compact
-                        icon="chev"
-                        disabled={item.status === 'cancelled'}
-                        style={styles.liveButton}
-                        onPress={() => navigation.navigate('LiveRoom', {liveClassId: item.id})}
-                      />
-                    </View>
-                    <View style={styles.bvisual}>
-                      <View style={styles.chalk}>
-                        <Chalkboard />
-                      </View>
-                      <View style={styles.teacher}>
-                        <TeacherArt />
-                      </View>
-                      <View style={styles.books}>
-                        <BooksArt />
-                      </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${liveActionLabel(item)}: ${
-                          item.title
-                        }`}
-                        onPress={() => navigation.navigate('LiveRoom', {liveClassId: item.id})}
-                        style={({ pressed }) => [
-                          styles.playover,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <Icon name="play" size={20} color="#fff" filled />
-                      </Pressable>
-                    </View>
-                  </Gradient>
-                </View>
-              ))}
+                      </Gradient>
+                    </Pressable>
+                  </View>
+                );
+              })}
             </ScrollView>
+            ) : (
+              <View style={styles.livePlaceholder} />
+            )}
             {liveClasses.length > 1 ? (
               <View style={styles.dots} accessibilityRole="tablist">
                 {liveClasses.map((item, index) => (
@@ -721,59 +736,57 @@ const styles = createThemedStyles({
   },
   pressed: { opacity: 0.82 },
   liveSection: { marginHorizontal: -space.pageX },
+  livePage: {
+    alignItems: 'center',
+    paddingHorizontal: space.pageX,
+  },
+  liveCard: { width: '100%' },
+  livePlaceholder: { height: 62, marginHorizontal: space.pageX },
   banner: {
-    minHeight: 172,
-    marginHorizontal: space.pageX,
-    borderRadius: 22,
+    minHeight: 62,
+    borderRadius: 16,
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingLeft: 12,
+    paddingRight: 8,
     overflow: 'hidden',
     boxShadow:
-      '0 22px 36px -16px rgba(13,71,161,0.6), inset 6px 6px 18px rgba(255,255,255,0.18), inset -6px -6px 18px rgba(2,20,60,0.3)',
+      '0 10px 18px -14px rgba(13,71,161,0.85), inset 0 1px 0 rgba(255,255,255,0.22)',
   },
   bleft: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 16,
-    paddingLeft: 16,
-    paddingRight: 4,
-    gap: 9,
+    gap: 5,
     justifyContent: 'center',
-    zIndex: 2,
   },
-  bltop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  liveTitle: { flex: 1, minWidth: 0 },
   livePulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,230,118,0.25)',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(0,230,118,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  livedot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#00E676' },
-  pill: { paddingVertical: 5, paddingHorizontal: 9, borderRadius: 999 },
-  liveLabel: { letterSpacing: 1.2 },
-  time: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  timeText: { flexShrink: 1 },
-  liveButton: { alignSelf: 'flex-start' },
-  bvisual: { width: 150, position: 'relative' },
-  chalk: { position: 'absolute', right: 10, top: 12 },
-  teacher: { position: 'absolute', left: 2, bottom: 14, zIndex: 3 },
-  books: { position: 'absolute', right: 16, bottom: 12, zIndex: 3 },
-  playover: {
-    position: 'absolute',
-    right: 52,
-    top: 34,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.55)',
+  livePulseIdle: { backgroundColor: 'rgba(255,255,255,0.16)' },
+  livedot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#00E676' },
+  livedotIdle: { backgroundColor: 'rgba(255,255,255,0.72)' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pill: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 999 },
+  liveLabel: { letterSpacing: 0.4 },
+  timeText: { flex: 1, minWidth: 0 },
+  liveChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 4,
-    boxShadow:
-      '0 10px 20px -6px rgba(0,0,0,0.4), inset 2px 2px 6px rgba(255,255,255,0.3)',
+    gap: 2,
+    paddingVertical: 7,
+    paddingLeft: 10,
+    paddingRight: 7,
+    borderRadius: 11,
+    flexShrink: 0,
   },
   dots: {
     flexDirection: 'row',

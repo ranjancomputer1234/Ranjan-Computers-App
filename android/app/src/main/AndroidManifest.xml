@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
 
+    <!-- ACCESS_WIFI_STATE (from NetInfo) makes Play require Wi-Fi hardware.
+         Connectivity also works on mobile data and Ethernet, so keep it optional. -->
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+
     <queries>
       <intent>
         <action android:name="android.intent.action.VIEW" />

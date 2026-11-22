@@ -15,6 +15,7 @@ import {useMutation, useQueries, useQuery} from '@tanstack/react-query';
 import {useRepositories} from '../../core/di';
 import {queryClient, queryKeys} from '../../core/query';
 import {accountKey, useSessionStore} from '../../core/session';
+import {useDayStreak, useStreakStore} from '../../features/profile/streakStore';
 import {clayShadow, colors, gradients, radius, space} from '../../theme';
 import {AppText, ClayButton, EmptyState, ErrorState, LoadingBlock, ProgressBar} from '../../components/ui';
 import {ClayCard, IconButton} from '../../components/ui/Clay';
@@ -55,6 +56,8 @@ export function MyLearningScreen() {
   const repos = useRepositories();
   const status = useSessionStore(s => s.status);
   const profile = useSessionStore(s => s.profile);
+  const accountId = useSessionStore(s => s.tokens?.accountId ?? null);
+  const streakDays = useDayStreak(status === 'authenticated' ? accountId : null) ?? profile?.stats.streakDays ?? 0;
   const [filter, setFilter] = useState<LearningFilter>('All');
   const [refreshing, setRefreshing] = useState(false);
   const userKey = accountKey();
@@ -104,7 +107,13 @@ export function MyLearningScreen() {
   const refresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([enrollments.refetch(), bookmarks.refetch(), home.refetch()]);
+      const owner = accountKey();
+      await Promise.all([
+        enrollments.refetch(),
+        bookmarks.refetch(),
+        home.refetch(),
+        status === 'authenticated' && owner !== 'guest' ? useStreakStore.getState().recordToday(owner) : Promise.resolve(),
+      ]);
     } finally {
       setRefreshing(false);
     }
@@ -188,7 +197,7 @@ export function MyLearningScreen() {
               <View style={styles.streakDot} />
               <Gradient colors={['#FDD835', '#F9A825']} style={styles.streakPill}>
                 <AppText weight="900" size={9} color="#4E342E" style={styles.tracking}>
-                  {profile?.stats.streakDays ?? 0}-DAY STREAK
+                  {streakDays}-DAY STREAK
                 </AppText>
               </Gradient>
             </View>

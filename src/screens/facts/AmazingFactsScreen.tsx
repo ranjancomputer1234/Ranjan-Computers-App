@@ -226,7 +226,7 @@ export function AmazingFactsScreen() {
     onError: () =>
       Alert.alert(
         'Quiz unavailable',
-        'Please try the daily challenge again in a moment.',
+        'No daily quiz is published yet.',
       ),
   });
 

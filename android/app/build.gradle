@@ -165,7 +165,8 @@ tasks.configureEach { if (name == "preReleaseBuild") dependsOn("verifyReleaseCon
 
 dependencies {
     implementation("com.android.billingclient:billing:8.3.0")
-    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
+    implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-messaging")
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")

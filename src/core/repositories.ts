@@ -119,16 +119,31 @@ export type LiveRepository = {
   chatHistory: (id: string) => Promise<{id: string; body: string; at: string; mine?: boolean; senderName?: string; faculty?: boolean}[]>;
 };
 
+export type PaymentConfig = {
+  configured: boolean;
+  keyId?: string;
+  provider?: string;
+};
+
+export type CheckoutCharge = {
+  amountMinor: number;
+  currency: string;
+  courseId?: string;
+};
+
 export type CommerceRepository = {
   restore: (purchases: Record<string, unknown>[]) => Promise<Order[]>;
+  paymentConfig: () => Promise<PaymentConfig>;
   quote: (productId: string, coupon?: string) => Promise<Order['quote'] & {productId: string; title: string}>;
   createOrder: (
     productId: string,
     coupon?: string,
     idempotencyKey?: string,
     method?: PaymentMethodId,
+    charge?: CheckoutCharge,
   ) => Promise<Order>;
   getOrder: (id: string) => Promise<Order>;
+  noteOrder: (order: Order) => void;
   verify: (orderId: string, providerPayload?: Record<string, unknown>) => Promise<Order>;
   history: () => Promise<Order[]>;
   entitlements: () => Promise<{productId: string; access: AccessDecision}[]>;

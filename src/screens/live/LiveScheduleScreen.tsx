@@ -262,7 +262,7 @@ function ClassRow({
       </View>
       {isLive ? <ClayButton label="Join Now" tone="orange" compact onPress={onOpen} /> : null}
       {ended && item.recordingAvailable ? <ClayButton label="Watch" tone="ghost" compact onPress={onOpen} /> : null}
-      {item.status === 'scheduled' ? (
+      {item.status === 'scheduled' && Date.parse(item.startsAt) > Date.now() ? (
         <IconButton
           icon="bell"
           color={item.reminderSet ? colors.primary : colors.navy}

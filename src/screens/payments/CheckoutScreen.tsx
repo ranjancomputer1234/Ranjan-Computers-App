@@ -10,7 +10,6 @@ import {useCheckout} from '../../features/payments/hooks/useCheckout';
 import {catalogOffPercent} from '../../features/payments/methods';
 import {inr} from '../../features/payments/utils/inr';
 import type {PaymentMethodView} from '../../features/payments/methods';
-import {PaymentSheet} from './PaymentSheet';
 import {styles} from './styles';
 
 export function CheckoutScreen() {
@@ -28,7 +27,6 @@ export function CheckoutScreen() {
     inAppCheckout,
     quote,
     storeProduct,
-    savedCards,
     pay,
     data,
     payableLabel,
@@ -37,8 +35,6 @@ export function CheckoutScreen() {
     expired,
   } = useCheckout();
 
-  const [paySheet, setPaySheet] = React.useState(false);
-  const submitted = React.useRef(false);
   const offPercent = data ? catalogOffPercent(data) : 0;
   const selling = data ? data.totalMinor + (data.couponDiscountMinor ?? 0) : 0;
   const couponSaved = data?.couponDiscountMinor ?? 0;
@@ -46,14 +42,6 @@ export function CheckoutScreen() {
   const busy = pay.isPending || quote.isFetching;
   const canPay = Boolean(data) && !busy && !unavailable && !expired && (!inAppCheckout || Boolean(method));
   const payLabel = pay.isPending ? 'Processing…' : payableLabel ? `Pay ${payableLabel} Securely` : 'Pay to Enroll';
-
-  React.useEffect(() => {
-    if (!submitted.current || pay.isPending) return;
-    if (pay.isSuccess || pay.isError) {
-      submitted.current = false;
-      setPaySheet(false);
-    }
-  }, [pay.isPending, pay.isSuccess, pay.isError]);
 
   return (
     <Screen padded={false}>
@@ -242,12 +230,6 @@ export function CheckoutScreen() {
           accessibilityLabel={payLabel}
           disabled={!canPay}
           onPress={() => {
-            if (inAppCheckout) {
-              pay.reset();
-              submitted.current = false;
-              setPaySheet(true);
-              return;
-            }
             pay.mutate();
           }}
           style={({pressed}) => [{width: '100%', opacity: !canPay ? 0.5 : pressed ? 0.9 : 1}]}>
@@ -259,29 +241,15 @@ export function CheckoutScreen() {
           </Gradient>
         </Pressable>
       </StickyActionFooter>
-      <PaymentSheet
-        visible={paySheet}
-        method={method}
-        amountLabel={payableLabel}
-        busy={pay.isPending}
-        savedCards={savedCards}
-        onClose={() => {
-          if (!pay.isPending) setPaySheet(false);
-        }}
-        onConfirm={draft => {
-          submitted.current = true;
-          pay.mutate(draft);
-        }}
-      />
     </Screen>
   );
 }
 
 function nextStepHint(method: PaymentMethodView['id']) {
-  if (method === 'upi') return 'Next: choose GPay, PhonePe, Paytm, BHIM, or a UPI ID';
-  if (method === 'card') return 'Next: use a saved card or enter a new one';
-  if (method === 'netbanking') return 'Next: choose your bank';
-  return 'Next: choose a wallet';
+  if (method === 'upi') return 'Next: Razorpay opens GPay, PhonePe, Paytm, and other UPI apps';
+  if (method === 'card') return 'Next: Razorpay opens a secure card form';
+  if (method === 'netbanking') return 'Next: Razorpay opens your bank';
+  return 'Next: Razorpay opens the wallet you choose';
 }
 
 function SecureBadge() {

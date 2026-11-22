@@ -14,6 +14,7 @@ import {usePreferencesStore} from '../features/settings/preferencesStore';
 import {bindLearningReminders, syncLearningReminder} from '../features/settings/reminders';
 import '../features/settings/i18n';
 import {NotificationRuntime} from '../features/notifications';
+import {DayStreakRuntime} from '../features/profile/DayStreakRuntime';
 
 enableScreens();
 enableFreeze(true);
@@ -65,6 +66,7 @@ function AppFrame() {
               <ErrorBoundary>
                 <PreferencesRuntime />
                 <NotificationRuntime />
+                <DayStreakRuntime />
                 <ThemedShell>
                   <RootNavigator />
                 </ThemedShell>

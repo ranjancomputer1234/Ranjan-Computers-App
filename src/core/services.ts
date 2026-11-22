@@ -5,6 +5,74 @@ import {appConfig} from './config';
 import {getPreference} from './storage';
 
 export type PaymentLaunchResult = {status: 'success' | 'cancelled' | 'failed' | 'unknown'; payload?: Record<string, unknown>};
+
+export type RazorpayLaunch = {
+  keyId: string;
+  orderId: string;
+  currency: string;
+  description?: string;
+  method?: 'upi' | 'card' | 'netbanking' | 'wallet';
+  prefill?: {name?: string; email?: string; contact?: string};
+};
+
+type RazorpaySuccess = {
+  razorpay_payment_id?: string;
+  razorpay_order_id?: string;
+  razorpay_signature?: string;
+};
+
+type RazorpayFailure = {
+  code?: number | string;
+  description?: string;
+};
+
+function razorpayCheckout() {
+  // Loaded at call time so a missing native rebuild surfaces as a payment error, not an import crash.
+  const checkout = require('react-native-razorpay').default as {
+    open: (options: Record<string, unknown>) => Promise<RazorpaySuccess>;
+  };
+  return checkout;
+}
+
+function razorpayCancelled(error: RazorpayFailure) {
+  const description = `${error.description ?? ''}`;
+  const code = `${error.code ?? ''}`;
+  // Razorpay Checkout uses code 2 when the learner closes the sheet.
+  return code === '2' || /cancel/i.test(description);
+}
+
+function razorpayOptions(amountMinor: number, checkout: RazorpayLaunch) {
+  const prefill = {
+    ...(checkout.prefill?.name ? {name: checkout.prefill.name} : {}),
+    ...(checkout.prefill?.email ? {email: checkout.prefill.email} : {}),
+    ...(checkout.prefill?.contact ? {contact: checkout.prefill.contact} : {}),
+  };
+  const instrument = checkout.method ? [{method: checkout.method}] : [{method: 'upi'}, {method: 'card'}, {method: 'netbanking'}, {method: 'wallet'}];
+  return {
+    key: checkout.keyId,
+    amount: String(Math.round(amountMinor)),
+    currency: checkout.currency || 'INR',
+    name: 'RACI',
+    description: checkout.description || 'Course enrollment',
+    order_id: checkout.orderId,
+    ...(Object.keys(prefill).length ? {prefill} : {}),
+    theme: {color: '#1565C0'},
+    retry: {enabled: false, max_count: 0},
+    config: {
+      display: {
+        blocks: {
+          preferred: {
+            name: 'Pay using',
+            instruments: instrument,
+          },
+        },
+        sequence: ['block.preferred'],
+        preferences: {show_default_blocks: !checkout.method},
+      },
+    },
+  };
+}
+
 export type StoreProduct = {productId: string; formattedPrice: string; currency: string; priceMicros: number};
 
 export const paymentService = {
@@ -16,7 +84,28 @@ export const paymentService = {
     if (!NativeModules.RaciBilling) throw new Error('Google Play purchases are unavailable on this device.');
     return NativeModules.RaciBilling.restore();
   },
-  async launch(orderId: string, amountMinor: number, product?: StoreProduct, accountId?: string): Promise<PaymentLaunchResult> {
+  async launch(orderId: string, amountMinor: number, product?: StoreProduct, accountId?: string, razorpay?: RazorpayLaunch): Promise<PaymentLaunchResult> {
+    if (razorpay?.keyId && razorpay.orderId) {
+      try {
+        const paid = await razorpayCheckout().open(razorpayOptions(amountMinor, razorpay));
+        if (!paid?.razorpay_payment_id || !paid.razorpay_signature) return {status: 'unknown'};
+        return {
+          status: 'success',
+          payload: {
+            provider: 'razorpay',
+            orderId: paid.razorpay_order_id || razorpay.orderId,
+            razorpay_order_id: paid.razorpay_order_id || razorpay.orderId,
+            razorpay_payment_id: paid.razorpay_payment_id,
+            razorpay_signature: paid.razorpay_signature,
+          },
+        };
+      } catch (error) {
+        const failure = (error ?? {}) as RazorpayFailure;
+        if (razorpayCancelled(failure)) return {status: 'cancelled'};
+        if (failure.description || failure.code !== undefined) return {status: 'failed'};
+        throw new Error('Razorpay checkout is not ready. Rebuild the app and try again.');
+      }
+    }
     if (appConfig.capabilities.payments && appConfig.paymentRoute === 'play_billing' && NativeModules.RaciBilling && product && accountId) {
       return NativeModules.RaciBilling.purchase(product.productId, product.priceMicros, product.currency, accountId);
     }

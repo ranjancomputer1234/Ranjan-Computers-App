@@ -9,6 +9,9 @@ export function accessBlocked(error: unknown): boolean {
 }
 
 export function checkoutAlert(error: unknown): {title: string; message: string} {
+  if (isAppError(error) && error.code === 'payment_unavailable') {
+    return {title: 'Could not start purchase', message: error.message};
+  }
   if (paymentFailed(error)) {
     return {title: PAYMENT_FAILED_TITLE, message: PAYMENT_FAILED_MESSAGE};
   }

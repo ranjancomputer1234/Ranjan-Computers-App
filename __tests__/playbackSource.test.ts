@@ -1,4 +1,5 @@
 import {buildPlaybackSource, formatClock, LIVE_BUFFER, VOD_BUFFER} from '../src/components/media/playbackSource';
+import {playableStream} from '../src/core/playback';
 
 describe('playback source', () => {
   it('formats a stable clock', () => {
@@ -32,6 +33,16 @@ describe('playback source', () => {
     expect(source.bufferConfig.live?.targetOffsetMs).toBe(LIVE_BUFFER.live?.targetOffsetMs);
     expect(source.bufferConfig.live?.targetOffsetMs).toBeLessThanOrEqual(3_000);
     expect(source.bufferConfig.maxBufferMs).toBeGreaterThanOrEqual(source.bufferConfig.minBufferMs);
+  });
+
+  it('plays the progressive mp4 the learner API returns, and signed hls', () => {
+    expect(playableStream({type: 'progressive_mp4', url: 'https://cdn.example/lesson.mp4'})).toEqual({
+      url: 'https://cdn.example/lesson.mp4',
+      mediaType: 'mp4',
+    });
+    expect(playableStream({type: 'mux_hls', url: 'https://stream.example/index.m3u8'})?.mediaType).toBe('m3u8');
+    expect(playableStream({type: 'progressive_mp4', url: 'http://cdn.example/lesson.mp4'})).toBeUndefined();
+    expect(playableStream({type: 'dash', url: 'https://cdn.example/lesson.mpd'})).toBeUndefined();
   });
 
   it('lets the player sniff files that are not hls', () => {

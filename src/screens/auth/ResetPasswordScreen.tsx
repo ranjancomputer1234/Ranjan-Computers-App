@@ -1,5 +1,5 @@
 import React from 'react';
-import {Pressable, ScrollView, TextInput, View} from 'react-native';
+import {Animated, Modal, Pressable, ScrollView, TextInput, View} from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useRepositories} from '../../core/di';
@@ -13,52 +13,146 @@ import {colors, gradients} from '../../theme';
 import type {RootStackParamList} from '../../navigation/types';
 import {styles} from './styles';
 
-type ResetPasswordFieldProps = {
+type PasswordFieldProps = {
   label: string;
   value: string;
+  placeholder: string;
+  hidden: boolean;
   onChangeText: (value: string) => void;
-  autoComplete: 'new-password';
+  onToggleHidden: () => void;
   error?: string;
   onSubmitEditing?: () => void;
 };
 
-function ResetPasswordField({label, value, onChangeText, autoComplete, error, onSubmitEditing}: ResetPasswordFieldProps) {
-  const [hidden, setHidden] = React.useState(true);
-
+function PasswordField({
+  label,
+  value,
+  placeholder,
+  hidden,
+  onChangeText,
+  onToggleHidden,
+  error,
+  onSubmitEditing,
+}: PasswordFieldProps) {
   return (
-    <View style={styles.resetField}>
-      <AppText weight="800" size={9.5} color="#757575" style={styles.resetFieldLabel}>
+    <View style={styles.field}>
+      <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
         {label}
       </AppText>
-      <View style={[styles.resetInputSurface, error ? styles.resetInputError : null]}>
-        <View style={styles.resetFieldIcon} accessibilityElementsHidden>
-          <Icon name="lock" size={15} color={error ? colors.error : colors.primary} />
-        </View>
+      <View style={[styles.inputSurface, error ? styles.forgotInputError : null]}>
+        <Icon name="lock" size={18} color={error ? colors.error : colors.text3} />
         <TextInput
           value={value}
           onChangeText={onChangeText}
           onSubmitEditing={onSubmitEditing}
-          placeholder="••••••••"
-          placeholderTextColor="#98A2B3"
+          placeholder={placeholder}
+          placeholderTextColor={colors.text3}
           accessibilityLabel={label}
           autoCapitalize="none"
           autoCorrect={false}
-          autoComplete={autoComplete}
+          autoComplete="new-password"
           textContentType="newPassword"
           secureTextEntry={hidden}
           returnKeyType={onSubmitEditing ? 'done' : 'next'}
-          style={styles.resetTextInput}
+          style={styles.textInput}
         />
         <Pressable
-          onPress={() => setHidden(current => !current)}
+          onPress={onToggleHidden}
           hitSlop={10}
           accessibilityRole="button"
-          accessibilityLabel={hidden ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}>
-          <Icon name="eye" size={16} color={colors.text3} />
+          accessibilityLabel={hidden ? 'Show password' : 'Hide password'}>
+          <Icon name="eye" size={18} color={hidden ? colors.text3 : colors.primary} />
         </Pressable>
       </View>
-      {error ? <AppText accessibilityRole="alert" size={9.5} color={colors.error}>{error}</AppText> : null}
+      {error ? (
+        <AppText accessibilityRole="alert" size={12} color={colors.error}>
+          {error}
+        </AppText>
+      ) : null}
     </View>
+  );
+}
+
+function PasswordRule({met, label}: {met: boolean; label: string}) {
+  return (
+    <View style={styles.passwordRule}>
+      <View style={[styles.passwordDot, met ? styles.passwordDotMet : null]} />
+      <AppText size={13} weight={met ? '700' : '500'} color={met ? colors.success : colors.text2}>
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
+function PasswordUpdatedNotice({onContinue}: {onContinue: () => void}) {
+  const card = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.spring(card, {
+      toValue: 1,
+      damping: 16,
+      stiffness: 190,
+      mass: 0.72,
+      useNativeDriver: true,
+    }).start();
+  }, [card]);
+
+  const scale = card.interpolate({inputRange: [0, 1], outputRange: [0.86, 1]});
+  const translateY = card.interpolate({inputRange: [0, 1], outputRange: [22, 0]});
+
+  return (
+    <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={onContinue}>
+      <View style={styles.successStage}>
+        <Animated.View
+          accessibilityViewIsModal
+          accessibilityRole="alert"
+          style={[styles.successCard, {opacity: card, transform: [{translateY}, {scale}]}]}>
+          <View style={styles.successAccent} />
+          <View style={styles.successBody}>
+            <View style={styles.successHalo}>
+              <View style={styles.successRing}>
+                <Gradient
+                  colors={gradients.result}
+                  start={{x: 0.2, y: 0}}
+                  end={{x: 0.9, y: 1}}
+                  style={styles.successRingFill}>
+                  <Icon name="check" size={34} color="#fff" strokeWidth={2.6} />
+                </Gradient>
+              </View>
+            </View>
+            <AppText weight="700" size={12} color={colors.success} style={styles.successEyebrow}>
+              You're all set
+            </AppText>
+            <AppText weight="800" size={24} color={colors.navy} center style={styles.successTitle}>
+              Password updated
+            </AppText>
+            <AppText weight="500" size={14} color={colors.text2} center style={styles.successLead}>
+              Your new password is saved. Sign in with it to get back to your courses.
+            </AppText>
+            <View style={styles.successNote}>
+              <Icon name="lock" size={16} color={colors.success} />
+              <AppText size={13} weight="600" color={colors.navy} style={styles.successNoteText}>
+                Your previous password no longer works.
+              </AppText>
+            </View>
+            <Pressable
+              onPress={onContinue}
+              accessibilityRole="button"
+              accessibilityLabel="Continue to sign in"
+              style={({pressed}) => [styles.successButton, pressed && styles.pressed]}>
+              <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
+                <AppText weight="700" size={16} color="#fff" center>
+                  Continue to sign in
+                </AppText>
+              </Gradient>
+            </Pressable>
+            <AppText weight="500" size={12} color={colors.text3} center style={styles.successHint}>
+              Opening sign in…
+            </AppText>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
@@ -68,123 +162,124 @@ export function ResetPasswordScreen() {
   const repos = useRepositories();
   const [password, setPassword] = React.useState('');
   const [confirmation, setConfirmation] = React.useState('');
+  const [hidePassword, setHidePassword] = React.useState(true);
+  const [hideConfirmation, setHideConfirmation] = React.useState(true);
+  const [updated, setUpdated] = React.useState(false);
+  const wentToLogin = React.useRef(false);
   const passwordValid = password.length >= 8;
   const passwordsMatch = confirmation.length > 0 && password === confirmation;
   const canSubmit = passwordValid && passwordsMatch;
   const confirmationError = confirmation.length > 0 && !passwordsMatch ? 'Passwords do not match yet.' : undefined;
 
+  const goToLogin = React.useCallback(() => {
+    if (wentToLogin.current) return;
+    wentToLogin.current = true;
+    navigation.reset({index: 0, routes: [{name: 'Login'}]});
+  }, [navigation]);
+
+  React.useEffect(() => {
+    if (!updated) return;
+    const timer = setTimeout(goToLogin, 2800);
+    return () => clearTimeout(timer);
+  }, [goToLogin, updated]);
+
   const reset = useAsyncAction(async () => {
     if (!passwordValid) throw new Error('Use at least 8 characters for your new password.');
     if (password !== confirmation) throw new Error('The passwords do not match.');
     await repos.auth.resetPassword(challengeId, password);
-    navigation.reset({index: 0, routes: [{name: 'Login'}]});
+    setPassword('');
+    setConfirmation('');
+    setUpdated(true);
   });
 
   return (
     <Screen padded={false}>
       <ScrollView
+        style={styles.loginScroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.resetPage}>
-        <Gradient
-          colors={gradients.loginHero}
-          start={{x: 0.08, y: 0}}
-          end={{x: 0.92, y: 1}}
-          style={styles.resetHero}>
-          <View style={styles.resetGlowOne} accessibilityElementsHidden />
-          <View style={styles.resetGlowTwo} accessibilityElementsHidden />
-
-          <View style={styles.resetTopRow}>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              hitSlop={8}
-              style={({pressed}) => [styles.resetBackButton, pressed && styles.pressed]}>
-              <Icon name="back" size={19} color="#fff" />
-            </Pressable>
-            <View style={styles.resetBrand} accessibilityElementsHidden>
-              <RediLogo size={38} />
-              <View>
-                <AppText weight="900" size={11.5} color="#fff">RACI</AppText>
-                <AppText weight="600" size={8.5} color="#BBDEFB">Learning made simple</AppText>
-              </View>
+        contentContainerStyle={styles.loginPage}>
+        <View style={styles.loginStage}>
+          <Gradient
+            colors={gradients.loginHero}
+            start={{x: 0.08, y: 0}}
+            end={{x: 0.92, y: 1}}
+            style={styles.forgotBrand}>
+            <View style={styles.forgotTopRow}>
+              <Pressable
+                onPress={() => navigation.goBack()}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                hitSlop={8}
+                style={({pressed}) => [styles.forgotBackButton, pressed && styles.pressed]}>
+                <Icon name="back" size={20} color="#fff" />
+              </Pressable>
+              <View style={styles.forgotTopSpacer} />
             </View>
-            <View style={styles.resetTopSpacer} />
-          </View>
+            <RediLogo size={64} />
+            <AppText weight="800" size={20} color="#fff" center style={styles.loginInstitute}>
+              Ranjan Computer Institute
+            </AppText>
+            <AppText weight="600" size={12} color="#FFD54F" center style={styles.loginTagline}>
+              Learn Computer With AI
+            </AppText>
+          </Gradient>
 
-          <View style={styles.resetHeroContent}>
-            <View style={styles.resetHeroIcon} accessibilityElementsHidden>
-              <Icon name="shield" size={28} color={colors.primary} strokeWidth={2.15} />
-              <View style={styles.resetHeroBadge}>
-                <Icon name="check" size={11} color="#fff" strokeWidth={2.7} />
+          <View style={styles.formCard}>
+            <View style={styles.loginHeading}>
+              <View style={styles.otpSteps} accessibilityElementsHidden>
+                <View style={[styles.otpStepMark, styles.otpStepDone]} />
+                <View style={[styles.otpStepMark, styles.otpStepDone]} />
+                <View style={[styles.otpStepMark, styles.otpStepCurrent]} />
               </View>
-            </View>
-            <AppText weight="800" size={9} color="#90CAF9" style={styles.resetEyebrow}>
-              SECURE RECOVERY
-            </AppText>
-            <AppText weight="900" size={24} color="#fff" center>
-              Create a new password
-            </AppText>
-            <AppText size={11.5} weight="600" color="#D8E9FF" center style={styles.resetDescription}>
-              Choose a strong password to keep your RACI account protected.
-            </AppText>
-          </View>
-        </Gradient>
-
-        <View style={styles.resetBody}>
-          <View style={styles.resetCard}>
-            <View style={styles.resetCardHeading}>
-              <AppText weight="900" size={17} color={colors.navy} center>
-                Set your new password
+              <AppText weight="700" size={12} color={colors.primary} style={styles.forgotStep}>
+                Step 3 of 3
               </AppText>
-              <AppText size={10} color={colors.text2} center style={styles.resetCardDescription}>
-                Make it unique and easy for you to remember.
+              <AppText weight="800" size={22} color={colors.navy} center style={styles.welcome}>
+                Create a new password
+              </AppText>
+              <AppText weight="500" size={14} color={colors.text2} center style={styles.forgotLead}>
+                Choose a strong password to keep your RACI account protected.
               </AppText>
             </View>
 
-            <ResetPasswordField
-              label="NEW PASSWORD"
+            <PasswordField
+              label="New password"
               value={password}
+              placeholder="At least 8 characters"
+              hidden={hidePassword}
+              onToggleHidden={() => setHidePassword(current => !current)}
               onChangeText={value => {
                 setPassword(value);
                 reset.clearError();
               }}
-              autoComplete="new-password"
             />
 
-            <View style={styles.resetRequirements}>
-              <Icon name={passwordValid ? 'check' : 'shield'} size={13} color={passwordValid ? colors.success : colors.text3} />
-              <AppText size={9.5} weight="600" color={passwordValid ? colors.success : colors.text2}>
-                Use at least 8 characters for a stronger password.
-              </AppText>
-            </View>
-
-            <ResetPasswordField
-              label="CONFIRM NEW PASSWORD"
+            <PasswordField
+              label="Confirm new password"
               value={confirmation}
+              placeholder="Re-enter your password"
+              hidden={hideConfirmation}
+              onToggleHidden={() => setHideConfirmation(current => !current)}
+              error={confirmationError}
               onChangeText={value => {
                 setConfirmation(value);
                 reset.clearError();
               }}
-              autoComplete="new-password"
-              error={confirmationError}
               onSubmitEditing={() => {
                 if (canSubmit) void reset.run();
               }}
             />
 
-            {confirmation.length > 0 && passwordsMatch ? (
-              <View style={styles.resetMatchNotice}>
-                <Icon name="check" size={14} color={colors.success} />
-                <AppText size={9.5} weight="700" color={colors.success}>Passwords match</AppText>
-              </View>
-            ) : null}
+            <View style={styles.passwordRules}>
+              <PasswordRule met={passwordValid} label="At least 8 characters" />
+              <PasswordRule met={passwordsMatch} label="Both passwords match" />
+            </View>
 
             {reset.error ? (
-              <View style={styles.resetError} accessibilityRole="alert">
-                <Icon name="help" size={14} color={colors.error} />
-                <AppText size={10} weight="600" color={colors.error} style={styles.resetErrorText}>
+              <View style={styles.signupApiError} accessibilityRole="alert">
+                <Icon name="help" size={16} color={colors.error} />
+                <AppText size={13} weight="600" color={colors.error} style={styles.signupApiErrorText}>
                   {reset.error}
                 </AppText>
               </View>
@@ -192,39 +287,42 @@ export function ResetPasswordScreen() {
 
             <Pressable
               onPress={() => void reset.run()}
-              disabled={!canSubmit || reset.busy}
+              disabled={!canSubmit || reset.busy || updated}
               accessibilityRole="button"
-              accessibilityState={{disabled: !canSubmit || reset.busy}}
+              accessibilityState={{disabled: !canSubmit || reset.busy || updated}}
               style={({pressed}) => [
-                styles.resetSubmitPressable,
+                styles.loginPressable,
                 pressed && styles.pressed,
-                (!canSubmit || reset.busy) && styles.disabled,
+                (!canSubmit || reset.busy || updated) && styles.disabled,
               ]}>
-              <Gradient colors={gradients.primaryButton} style={styles.resetSubmitButton}>
-                <Icon name={reset.busy ? 'hourglass' : 'shield'} size={16} color="#fff" />
-                <AppText weight="800" size={12} color="#fff">
-                  {reset.busy ? 'Updating securely…' : 'Update password'}
+              <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
+                <AppText weight="700" size={16} color="#fff" center>
+                  {reset.busy ? 'Updating password…' : 'Update password'}
                 </AppText>
               </Gradient>
             </Pressable>
 
-            <View style={styles.resetSecurityNote}>
-              <Icon name="lock" size={13} color={colors.success} />
-              <AppText size={9.5} weight="600" color={colors.text2} style={styles.resetSecurityText}>
+            <View style={styles.signupTrustRow}>
+              <Icon name="lock" size={15} color={colors.success} />
+              <AppText size={12} weight="500" color={colors.text2} style={styles.forgotTrust}>
                 Your password is encrypted and never shared with anyone.
               </AppText>
             </View>
           </View>
 
-          <Pressable
-            onPress={() => navigation.navigate('Login')}
-            accessibilityRole="button"
-            style={({pressed}) => [styles.resetSignIn, pressed && styles.pressed]}>
-            <AppText weight="600" size={10.5} color={colors.text2}>Remembered your password? </AppText>
-            <AppText weight="800" size={10.5} color={colors.primary}>Sign in</AppText>
-          </Pressable>
+          <View style={styles.loginFooter}>
+            <Pressable
+              onPress={() => navigation.navigate('Login')}
+              accessibilityRole="button"
+              style={styles.loginLink}>
+              <AppText weight="500" size={14} color={colors.text2}>Remembered your password?</AppText>
+              <AppText weight="500" size={14} color={colors.text2}> </AppText>
+              <AppText weight="700" size={14} color={colors.primary}>Sign in</AppText>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
+      {updated ? <PasswordUpdatedNotice onContinue={goToLogin} /> : null}
     </Screen>
   );
 }

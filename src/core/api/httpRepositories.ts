@@ -1,3 +1,6 @@
+import {isPublishedResult} from './resultPublication';
+import {playableStream} from '../playback';
+import {visibleLiveClasses} from '../../features/live/visibleClasses';
 import {http, isAppError, tokenStore} from './http';
 import {appConfig} from '../config';
 import {learnerDeviceIdentity} from '../installation';
@@ -23,6 +26,7 @@ import type {
   Enrollment,
   Exam,
   Fact,
+  HomeDashboard,
   InterviewQuestion,
   IssuedDocument,
   LearnerProfile,
@@ -76,6 +80,9 @@ type ApiLesson = {
   isPreview?: boolean;
   hasMedia?: boolean;
   resourceId?: string | null;
+  completed?: boolean;
+  progressPct?: number | null;
+  progress?: number | {percent?: number; progressPct?: number; completed?: boolean} | null;
   resources?: Array<{
     id: string;
     title?: string | null;
@@ -152,6 +159,14 @@ type ApiEnrollment = {
   startsAt?: string;
   updatedAt?: string;
   course?: {id: string; title: string; slug?: string; lifecycle?: string};
+  progress?: {
+    completedLessons?: number;
+    totalLessons?: number;
+    percent?: number;
+    progressPct?: number;
+    nextLessonId?: string;
+    updatedAt?: string;
+  } | null;
 };
 
 type ApiDocument = {
@@ -584,11 +599,39 @@ function toAttempt(row: Record<string, unknown>): Attempt & {questions: Question
   };
 }
 
-function isPublishedResult(row: Record<string, unknown>): boolean {
-  if (row.published === false || row.isPublished === false) return false;
-  const status = typeof row.status === 'string' ? row.status.toLowerCase() : '';
-  const visibility = typeof row.visibility === 'string' ? row.visibility.toLowerCase() : '';
-  return status !== 'draft' && status !== 'unpublished' && visibility !== 'draft' && visibility !== 'unpublished';
+function lessonPercent(lesson: ApiLesson): number {
+  if (lesson.completed) return 100;
+  if (typeof lesson.progressPct === 'number') return Math.max(0, Math.min(100, Math.round(lesson.progressPct)));
+  if (typeof lesson.progress === 'number') return Math.max(0, Math.min(100, Math.round(lesson.progress)));
+  if (lesson.progress && typeof lesson.progress === 'object') {
+    if (lesson.progress.completed) return 100;
+    const pct = lesson.progress.percent ?? lesson.progress.progressPct;
+    if (typeof pct === 'number') return Math.max(0, Math.min(100, Math.round(pct)));
+  }
+  return 0;
+}
+
+function progressFromEnrollment(row: ApiEnrollment, lessons: ApiLesson[]): Enrollment['progress'] {
+  const updatedAt = row.progress?.updatedAt || row.updatedAt || row.startsAt || new Date(0).toISOString();
+  const server = row.progress;
+  if (server && (server.completedLessons !== undefined || server.totalLessons !== undefined || server.percent !== undefined || server.progressPct !== undefined)) {
+    const totalLessons = server.totalLessons ?? lessons.length;
+    const completedLessons = server.completedLessons ?? lessons.filter(lesson => lessonPercent(lesson) >= 100).length;
+    const percent = server.percent ?? server.progressPct ?? (totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0);
+    return {
+      completedLessons,
+      totalLessons,
+      percent: Math.max(0, Math.min(100, Math.round(percent))),
+      nextLessonId: server.nextLessonId,
+      updatedAt,
+    };
+  }
+  const percents = lessons.map(lessonPercent);
+  const totalLessons = lessons.length;
+  const completedLessons = percents.filter(pct => pct >= 100).length;
+  const percent = totalLessons ? Math.round(percents.reduce((sum, pct) => sum + pct, 0) / totalLessons) : 0;
+  const next = lessons.find((lesson, index) => percents[index] < 100);
+  return {completedLessons, totalLessons, percent, nextLessonId: next?.id, updatedAt};
 }
 
 function toResult(row: Record<string, unknown>): TestResult {
@@ -869,7 +912,43 @@ async function publishedLiveClasses(fromIso?: string, toIso?: string): Promise<L
     from: fromIso ?? new Date(now - 24 * 60 * 60 * 1000).toISOString(),
     to: toIso ?? new Date(now + 14 * 24 * 60 * 60 * 1000).toISOString(),
   });
-  return payload ? asRows(payload).map(toLiveClass) : [];
+  const ranged = payload ? asRows(payload).map(toLiveClass) : [];
+  if (ranged.length) return ranged;
+  const catalog = await getOptional<unknown>('/live-classes');
+  const all = catalog ? asRows(catalog).map(toLiveClass) : [];
+  return visibleLiveClasses(ranged, all, now);
+}
+
+async function lessonsForCourse(courseId: string): Promise<ApiLesson[]> {
+  try {
+    const lessons = await get<ApiLesson[]>(`/courses/${courseId}/lessons`);
+    return [...lessons].sort((a, b) => a.sortOrder - b.sortOrder);
+  } catch {
+    return [];
+  }
+}
+
+async function resumeFromEnrollments(): Promise<HomeDashboard['continueLearning']> {
+  try {
+    const rows = await get<ApiEnrollment[]>('/me/enrollments');
+    const cards = [];
+    for (const row of rows.filter(item => item.status === 'active').slice(0, 5)) {
+      const lessons = await lessonsForCourse(row.courseId);
+      const progress = progressFromEnrollment(row, lessons);
+      const current = lessons.find(lesson => lesson.id === progress.nextLessonId) ?? lessons[0];
+      if (!current) continue;
+      cards.push({
+        courseId: row.courseId,
+        lessonId: current.id,
+        title: row.course?.title || 'Course',
+        lessonLabel: current.title,
+        percent: progress.percent,
+      });
+    }
+    return cards;
+  } catch {
+    return [];
+  }
 }
 
 const NOTIFICATION_CATEGORIES = new Set<NotificationCategory>(['classes', 'tests', 'news', 'offers', 'system']);
@@ -958,6 +1037,98 @@ async function clearLearnerNotifications(): Promise<{mode: 'archive' | 'mark_rea
   }
 }
 
+const CHECKOUT_METHODS: Order['quote']['methods'] = ['upi', 'card', 'netbanking', 'wallet'];
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+}
+
+function numberField(row: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
+  }
+  return undefined;
+}
+
+function providerOrderId(row: Record<string, unknown>): string | undefined {
+  const candidates = [row.orderId, row.order_id, row.razorpayOrderId, row.razorpay_order_id, row.id]
+    .map(text)
+    .filter((value): value is string => Boolean(value));
+  return candidates.find(id => id.startsWith('order_')) ?? candidates[0];
+}
+
+function paymentStatus(value: unknown): Order['status'] | undefined {
+  const status = text(value)?.toLowerCase();
+  if (!status) return undefined;
+  if (['succeeded', 'paid', 'captured', 'authorized', 'success', 'verified'].includes(status)) return 'succeeded';
+  if (['failed', 'failure'].includes(status)) return 'failed';
+  if (['cancelled', 'canceled'].includes(status)) return 'cancelled';
+  if (status === 'pending' || status === 'paidaccesspending') return 'paidAccessPending';
+  const known: Order['status'][] = [
+    'idle',
+    'creatingOrder',
+    'awaitingProvider',
+    'verifying',
+    'paidAccessPending',
+    'succeeded',
+    'cancelled',
+    'failed',
+    'unknownNeedsRecheck',
+  ];
+  return known.find(item => item.toLowerCase() === status);
+}
+
+function checkoutOrder(input: {
+  id: string;
+  productId: string;
+  title?: string;
+  amountMinor: number;
+  currency: string;
+  method?: Order['method'];
+  status: Order['status'];
+  paidAt?: string;
+  receiptId?: string;
+}): Order {
+  const amount = Math.max(0, Math.round(input.amountMinor));
+  return {
+    id: input.id,
+    productId: input.productId,
+    title: input.title?.trim() || 'Enrollment',
+    quote: {
+      mrpMinor: amount,
+      discountMinor: 0,
+      totalMinor: amount,
+      currency: input.currency || 'INR',
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      methods: [...CHECKOUT_METHODS],
+    },
+    status: input.status,
+    method: input.method,
+    paidAt: input.paidAt,
+    receiptId: input.receiptId,
+  };
+}
+
+function orderFromVerify(raw: unknown, orderId: string, courseId?: string): Order {
+  const row = asRecord(raw) ?? {};
+  const nested = asRecord(row.order) ?? asRecord(row.payment) ?? row;
+  const explicit = paymentStatus(nested.status) ?? paymentStatus(row.status);
+  const failed = row.success === false || row.verified === false || row.paid === false;
+  const status = explicit ?? (failed ? 'failed' : 'succeeded');
+  return checkoutOrder({
+    id: providerOrderId(nested) || providerOrderId(row) || orderId,
+    productId: text(row.courseId) || text(nested.courseId) || text(row.productId) || courseId || '',
+    title: text(row.title) || text(nested.title),
+    amountMinor: numberField(nested, ['amount', 'amountMinor', 'totalMinor']) ?? numberField(row, ['amount', 'amountMinor']) ?? 0,
+    currency: text(nested.currency) || text(row.currency) || 'INR',
+    status,
+    paidAt: status === 'succeeded' ? text(row.paidAt) || text(nested.paidAt) || new Date().toISOString() : undefined,
+    receiptId: text(row.receiptId) || text(row.razorpay_payment_id) || text(nested.razorpay_payment_id),
+  });
+}
+
 async function unreadNotificationCount(): Promise<number> {
   if (!tokenStore.getAccessToken()) return 0;
   try {
@@ -970,6 +1141,10 @@ async function unreadNotificationCount(): Promise<number> {
 
 export function createHttpRepositories(): Repositories {
   const fetchProfile = async () => toProfile(await get<ApiLearner>('/me'));
+  const notedOrders = new Map<string, Order>();
+  const rememberOrder = (order: Order) => {
+    if (order.id) notedOrders.set(order.id, order);
+  };
 
   return {
     auth: {
@@ -1008,9 +1183,35 @@ export function createHttpRepositories(): Repositories {
       },
       verifyChallenge: async (challengeId, code) =>
         toSession(await post<ApiAuth>(`/auth/challenges/${encodeURIComponent(challengeId)}/verify`, {code})),
-      forgotPassword: () => unavailable('Password recovery'),
-      verifyResetCode: () => unavailable('Password recovery'),
-      resetPassword: () => unavailable('Password recovery'),
+      forgotPassword: async identifier => {
+        const email = identifier.trim().toLowerCase();
+        const started = await post<{challengeId?: string | null; message?: string}>('/auth/password/forgot', {email});
+        const challengeId = typeof started?.challengeId === 'string' ? started.challengeId.trim() : '';
+        if (!challengeId) {
+          return Promise.reject({
+            code: 'reset_not_started',
+            message: 'No reset code was sent for this email. Use the address on your account and try again.',
+            retryable: false,
+          });
+        }
+        return {challengeId};
+      },
+      verifyResetCode: async (challengeId, code) => {
+        const raw = await post<unknown>('/auth/password/verify', {challengeId, code});
+        const row = asRecord(raw) ?? {};
+        const resetToken = (text(row.resetToken) || text(row.token) || '').trim();
+        if (!resetToken) {
+          return Promise.reject({
+            code: 'reset_token_missing',
+            message: 'That code did not return a reset token. Request a new code and try again.',
+            retryable: false,
+          });
+        }
+        return {resetToken};
+      },
+      resetPassword: async (resetToken, password) => {
+        await post('/auth/password/reset', {resetToken, newPassword: password});
+      },
       exchangeGoogle: () => unavailable('Google sign-in'),
       logout: async () => {
         try {
@@ -1057,13 +1258,17 @@ export function createHttpRepositories(): Repositories {
           sections: home.sections.map(toSection),
           featuredCourses: home.featuredCourses.map(toCourse),
           liveClasses,
-          continueLearning: home.continuing.slice(0, 5).map(current => ({
-            courseId: current.courseId,
-            lessonId: current.lessonId,
-            title: current.courseTitle,
-            lessonLabel: current.title,
-            percent: current.progressPct,
-          })),
+          continueLearning: home.continuing.length
+            ? home.continuing.slice(0, 5).map(current => ({
+                courseId: current.courseId,
+                lessonId: current.lessonId,
+                title: current.courseTitle,
+                lessonLabel: current.title,
+                percent: current.progressPct,
+              }))
+            : signedIn
+              ? await resumeFromEnrollments()
+              : [],
           unreadNotifications,
         };
       },
@@ -1102,17 +1307,16 @@ export function createHttpRepositories(): Repositories {
     learning: {
       enrollments: async () => {
         const rows = await get<ApiEnrollment[]>('/me/enrollments');
-        return rows.filter(row => row.status === 'active').map<Enrollment>(row => ({
-          id: row.id,
-          courseId: row.courseId,
-          kind: 'standard',
-          purchasedAt: row.startsAt,
-          progress: {
-            completedLessons: 0,
-            totalLessons: 0,
-            percent: 0,
-            updatedAt: row.updatedAt || row.startsAt || new Date(0).toISOString(),
-          },
+        const active = rows.filter(row => row.status === 'active');
+        return Promise.all(active.map(async row => {
+          const lessons = await lessonsForCourse(row.courseId);
+          return {
+            id: row.id,
+            courseId: row.courseId,
+            kind: 'standard' as const,
+            purchasedAt: row.startsAt,
+            progress: progressFromEnrollment(row, lessons),
+          };
         }));
       },
       enroll: async courseId => {
@@ -1249,11 +1453,19 @@ export function createHttpRepositories(): Repositories {
       },
       dailyPractice: async kind => {
         try {
-          return await get<{testId: string}>('/practice/daily', {kind});
+          const row = await get<{testId?: string}>('/practice/daily', {kind});
+          if (row?.testId) return {testId: row.testId};
         } catch (error) {
-          if (isAppError(error) && error.httpStatus === 404) return unavailable('Daily practice');
-          throw error;
+          if (!(isAppError(error) && error.httpStatus === 404)) throw error;
         }
+        if (kind === 'facts') {
+          const payload = await getOptional<unknown>('/facts');
+          const rows = payload ? asRows(payload) : [];
+          const featured = rows.find(row => row.featured) ?? rows[0];
+          const quizId = featured ? text(featured.quizId) ?? text(featured.relatedQuizId) : undefined;
+          if (quizId) return {testId: quizId};
+        }
+        return unavailable('Daily practice');
       },
     },
     content: {
@@ -1309,14 +1521,90 @@ export function createHttpRepositories(): Repositories {
     },
     commerce: {
       restore: purchases => post<Order[]>('/payments/restore', {provider: 'play_billing', purchases}),
+      paymentConfig: async () => {
+        const row = await get<{configured?: boolean; keyId?: string | null; provider?: string | null}>('/payments/config');
+        const keyId = row.keyId?.trim() || undefined;
+        return {
+          configured: row.configured !== false && Boolean(keyId),
+          keyId,
+          provider: row.provider?.trim() || undefined,
+        };
+      },
       quote: (productId, coupon) => post<Order['quote'] & {productId: string; title: string}>('/checkout/quote', {productId, ...(coupon ? {coupon} : {})}),
-      createOrder: (productId, coupon, idempotencyKey, method) => post<Order>('/orders', {
-        productId,
-        ...(coupon ? {coupon} : {}),
-        ...(method ? {method} : {}),
-      }, idempotencyKey ? {'Idempotency-Key': idempotencyKey} : undefined),
-      getOrder: id => get<Order>(`/orders/${id}`),
-      verify: (orderId, providerPayload) => post<Order>('/payments/verify', {orderId, ...providerPayload}),
+      createOrder: async (productId, coupon, idempotencyKey, method, charge) => {
+        const courseId = charge?.courseId || productId;
+        const amountMinor = charge?.amountMinor;
+        const body: Record<string, unknown> =
+          typeof amountMinor === 'number' && Number.isFinite(amountMinor) && amountMinor > 0
+            ? {amount: Math.round(amountMinor), currency: charge?.currency || 'INR', courseId}
+            : {orderId: productId, courseId};
+        if (coupon) body.coupon = coupon;
+        if (method) body.method = method;
+        const headers = idempotencyKey ? {'Idempotency-Key': idempotencyKey} : undefined;
+        let created: Record<string, unknown>;
+        try {
+          created = await post<Record<string, unknown>>('/payments/create-order', body, headers);
+        } catch (error) {
+          const rejectedField = isAppError(error) && error.httpStatus === 400 && /should not exist/i.test(error.message);
+          if (!rejectedField) throw error;
+          const amountOnly =
+            typeof amountMinor === 'number' && Number.isFinite(amountMinor) && amountMinor > 0
+              ? {amount: Math.round(amountMinor)}
+              : {orderId: productId};
+          created = await post<Record<string, unknown>>('/payments/create-order', amountOnly, headers);
+        }
+        const id = providerOrderId(created);
+        if (!id) throw new Error('Payment could not be started.');
+        const order = checkoutOrder({
+          id,
+          productId: courseId,
+          amountMinor: numberField(created, ['amount', 'amountMinor']) ?? (typeof amountMinor === 'number' ? amountMinor : 0),
+          currency: text(created.currency) || charge?.currency || 'INR',
+          method,
+          status: 'awaitingProvider',
+          receiptId: text(created.receipt),
+        });
+        rememberOrder(order);
+        return order;
+      },
+      getOrder: async id => {
+        try {
+          const order = await get<Order>(`/orders/${id}`);
+          rememberOrder(order);
+          return order;
+        } catch (error) {
+          const known = notedOrders.get(id);
+          if (known && isAppError(error) && error.httpStatus === 404) return known;
+          throw error;
+        }
+      },
+      noteOrder: rememberOrder,
+      verify: async (orderId, providerPayload) => {
+        const courseId = typeof providerPayload?.courseId === 'string' ? providerPayload.courseId : undefined;
+        const payload = {
+          orderId,
+          razorpay_order_id: providerPayload?.razorpay_order_id,
+          razorpay_payment_id: providerPayload?.razorpay_payment_id,
+          razorpay_signature: providerPayload?.razorpay_signature,
+        };
+        let raw: unknown;
+        try {
+          raw = await post<unknown>('/payments/verify-payment', payload);
+        } catch (error) {
+          const rejectedField = isAppError(error) && error.httpStatus === 400 && /should not exist/i.test(error.message);
+          if (!rejectedField) throw error;
+          raw = await post<unknown>('/payments/verify-payment', {
+            orderId,
+            razorpay_order_id: providerPayload?.razorpay_order_id,
+            razorpay_payment_id: providerPayload?.razorpay_payment_id,
+            razorpay_signature: providerPayload?.razorpay_signature,
+          });
+        }
+        const order = orderFromVerify(raw, orderId, courseId);
+        rememberOrder(order);
+        if (order.id !== orderId) notedOrders.set(orderId, order);
+        return order;
+      },
       history: () => get<Order[]>('/me/orders'),
       entitlements: async () => {
         const rows = await get<Array<{courseId?: string | null; scopeRef?: string; state: string; canDownload: boolean; canPreview: boolean; endsAt?: string | null}>>('/me/entitlements');
@@ -1403,7 +1691,7 @@ export function createHttpRepositories(): Repositories {
         if (crypto.status !== 'configured' && crypto.status !== 'using_dev_fallback') {
           throw new Error('Offline authorization is not configured.');
         }
-        if (mapped.kind === 'video' && mapped.playback?.url && mapped.playback.type !== 'mux_hls' && mapped.playback.type !== 'cloudinary_hls') {
+        if (mapped.kind === 'video' && mapped.playback?.url && !playableStream(mapped.playback)) {
           throw new Error('This video cannot be played inside the app.');
         }
         return mapped;

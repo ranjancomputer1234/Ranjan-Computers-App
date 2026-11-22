@@ -52,6 +52,18 @@ describe('checkout payment errors', () => {
     });
   });
 
+  it('keeps the learner signed in when checkout rejects the payment call', () => {
+    expect(checkoutAlert({
+      code: 'payment_unavailable',
+      message: 'Payment could not be started. You are still signed in.',
+      retryable: false,
+      httpStatus: 401,
+    })).toEqual({
+      title: 'Could not start purchase',
+      message: 'Payment could not be started. You are still signed in.',
+    });
+  });
+
   it('keeps a quote problem readable', () => {
     expect(checkoutAlert(new Error('The quote expired. Please review the updated price.'))).toEqual({
       title: 'Could not start purchase',

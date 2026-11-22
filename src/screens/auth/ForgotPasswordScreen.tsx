@@ -29,7 +29,7 @@ export function ForgotPasswordScreen() {
     }
     setFieldError('');
     const result = await repos.auth.forgotPassword(value);
-    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'reset'});
+    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'reset', sentTo: value});
   });
 
   return (
@@ -67,8 +67,13 @@ export function ForgotPasswordScreen() {
 
           <View style={styles.formCard}>
             <View style={styles.loginHeading}>
+              <View style={styles.otpSteps} accessibilityElementsHidden>
+                <View style={[styles.otpStepMark, styles.otpStepCurrent]} />
+                <View style={[styles.otpStepMark, styles.otpStepPending]} />
+                <View style={[styles.otpStepMark, styles.otpStepPending]} />
+              </View>
               <AppText weight="700" size={12} color={colors.primary} style={styles.forgotStep}>
-                Step 1 of 2
+                Step 1 of 3
               </AppText>
               <AppText weight="800" size={22} color={colors.navy} center style={styles.welcome}>
                 Reset your password

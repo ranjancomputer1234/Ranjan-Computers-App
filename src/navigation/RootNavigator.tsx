@@ -16,7 +16,8 @@ import {
 import {DailyQuizScreen, TestRunnerScreen} from '../screens/assessments';
 import {CheckoutScreen, PaymentSuccessScreen, PaymentFailureScreen, PaymentPendingScreen} from '../screens/payments';
 import {SemesterWaitScreen} from '../screens/semesters';
-import {AppText, ClayButton, LoadingBlock} from '../components/ui';
+import {LoadingBlock} from '../components/ui';
+import {SessionRecoveryScreen} from '../screens/auth/SessionRecoveryScreen';
 import {LegalScreen} from '../screens/support';
 import {SplashScreen} from '../screens/splash/SplashScreen';
 import {OnboardingScreen} from '../screens/onboarding';
@@ -71,12 +72,7 @@ export function RootNavigator() {
   const inApp = status === 'authenticated' || status === 'guest';
 
   if (status === 'recoveryRequired') {
-    return <View style={{flex: 1, justifyContent: 'center', padding: 24, gap: 16, backgroundColor: theme.colors.scroll}}>
-      <AppText weight="800" size={20}>Reconnect to continue</AppText>
-      <AppText>We could not restore your account. Your sign-in details are still saved securely.</AppText>
-      <ClayButton label="Try again" onPress={() => void hydrate()} />
-      <ClayButton label="Sign out" tone="ghost" onPress={() => void useSessionStore.getState().logout()} />
-    </View>;
+    return <SessionRecoveryScreen />;
   }
 
   return (

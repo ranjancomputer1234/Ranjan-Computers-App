@@ -6,7 +6,8 @@ import {MediaPlayer} from '../../components/media/MediaPlayer';
 import {usePreferencesStore} from '../../features/settings/preferencesStore';
 import {videoBitRate, videoInitialBitRate} from '../../features/settings/preferences';
 import {accountKey} from '../../core/session';
-import {offlineFiles, type DownloadAuthorization} from '../../core/offlineFiles';
+import {playableStream} from '../../core/playback';
+import {offlineFiles} from '../../core/offlineFiles';
 import {colors, space} from '../../theme';
 import {AppText, ClayButton, ErrorState, LoadingBlock} from '../../components/ui';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
@@ -23,16 +24,9 @@ type PdfModule = {
 };
 
 type ViewState =
-  | {mode: 'video'; url: string; expiresInSeconds: number | null}
+  | {mode: 'video'; url: string; mediaType: 'mp4' | 'm3u8'; expiresInSeconds: number | null}
   | {mode: 'note'; note: string}
   | {mode: 'pdf'; path: string; pageCount: number; index: number; imagePath: string};
-
-function isPlayable(auth: DownloadAuthorization) {
-  const playback = auth.playback;
-  return Boolean(
-    playback?.url && (playback.type === 'mux_hls' || playback.type === 'cloudinary_hls'),
-  );
-}
 
 export function ProtectedViewerScreen() {
   const params = useRoute().params as ViewerParams;
@@ -52,7 +46,8 @@ export function ProtectedViewerScreen() {
     try {
       const auth = await repos.account.authorizeDownload(params.resourceId);
       if (params.kind === 'video' || auth.kind === 'video' || auth.playback) {
-        if (!isPlayable(auth) || !auth.playback?.url) {
+        const stream = playableStream(auth.playback);
+        if (!stream) {
           if (silent) return;
           setState({
             mode: 'note',
@@ -64,8 +59,9 @@ export function ProtectedViewerScreen() {
         }
         setState({
           mode: 'video',
-          url: auth.playback.url,
-          expiresInSeconds: auth.playback.expiresInSeconds ?? null,
+          url: stream.url,
+          mediaType: stream.mediaType,
+          expiresInSeconds: auth.playback?.expiresInSeconds ?? null,
         });
         return;
       }
@@ -158,7 +154,7 @@ export function ProtectedViewerScreen() {
             sessionKey={params.resourceId}
             reloadToken={reloadToken}
             active={focused && !error}
-            mediaType="m3u8"
+            mediaType={state.mediaType}
             maxBitRate={videoBitRate(quality)}
             initialBitrate={videoInitialBitRate(quality)}
             onError={() => setError('Video playback stopped. A fresh authorization is required.')}
