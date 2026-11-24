@@ -1,22 +1,24 @@
 import React from 'react';
-import {Pressable, ScrollView, TextInput, View} from 'react-native';
+import {Pressable, TextInput, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {colors, gradients} from '../../theme';
 import {AppText} from '../../components/ui';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
 import {RediLogo} from '../../assets/illustrations';
 import {Icon} from '../../assets/icons';
 import type {RootStackParamList} from '../../navigation/types';
 import {useLogin} from '../../features/auth/hooks/useLogin';
+import {GoogleAuthButton} from './GoogleAuthButton';
 import {styles} from './styles';
 import {useUiTranslation} from '../../features/settings/uiTranslations';
 
 export function LoginScreen() {
   const tx = useUiTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const {form, busy, onSubmit, enterGuest} = useLogin();
+  const {form, busy, onSubmit, signInWithGoogleAccount, enterGuest} = useLogin();
   const [passwordHidden, setPasswordHidden] = React.useState(true);
 
   const identifier = form.watch('identifier');
@@ -25,10 +27,9 @@ export function LoginScreen() {
 
   return (
     <Screen padded={false}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.loginScroll}
         contentContainerStyle={styles.loginPage}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.loginStage}>
           <Gradient
@@ -65,17 +66,17 @@ export function LoginScreen() {
 
             <View style={styles.field}>
               <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
-                Email address
+                Email or mobile number
               </AppText>
               <View style={styles.inputSurface}>
                 <Icon name="user" size={18} color={colors.text3} />
                 <TextInput
                   value={identifier}
                   onChangeText={text => form.setValue('identifier', text, {shouldValidate: Boolean(identifierError)})}
-                  placeholder="name@example.com"
+                  placeholder="name@example.com or 10-digit mobile"
                   placeholderTextColor={colors.text3}
-                  accessibilityLabel="Email address"
-                  keyboardType="email-address"
+                  accessibilityLabel="Email or mobile number"
+                  keyboardType="default"
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="username"
@@ -140,6 +141,18 @@ export function LoginScreen() {
                 </AppText>
               </Gradient>
             </Pressable>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <AppText weight="700" size={11} color={colors.text3} style={styles.dividerText}>OR</AppText>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <GoogleAuthButton
+              label={tx('Continue with Google')}
+              disabled={busy}
+              onPress={() => void signInWithGoogleAccount()}
+            />
           </View>
 
           <View style={styles.loginFooter}>
@@ -156,7 +169,7 @@ export function LoginScreen() {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

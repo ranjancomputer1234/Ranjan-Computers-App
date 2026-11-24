@@ -1,5 +1,6 @@
 import React from 'react';
-import {Pressable, ScrollView, TextInput, View} from 'react-native';
+import {Pressable, TextInput, View} from 'react-native';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RediLogo} from '../../assets/illustrations';
@@ -146,9 +147,8 @@ export function VerifyContactScreen() {
 
   return (
     <Screen padded={false}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.loginScroll}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.loginPage}>
         <View style={styles.loginStage}>
@@ -342,7 +342,7 @@ export function VerifyContactScreen() {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

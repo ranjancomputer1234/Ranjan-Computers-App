@@ -4,7 +4,8 @@ import {
   formatQuoteCountdown,
   methodsFor,
 } from '../src/features/payments/methods';
-import {checkoutAlert} from '../src/features/payments/paymentOutcome';
+import {isFreeClaim, normalizeCheckoutQuote, quoteWithCoupon} from '../src/features/payments/couponQuote';
+import {amountMismatch, checkoutAlert, paymentRecordStatus, verificationFailed} from '../src/features/payments/paymentOutcome';
 import {cardLabel, validateCard, validateUpiId} from '../src/features/payments/paymentInstruments';
 import {mergeSavedCard} from '../src/features/payments/savedCards';
 import {methodLine} from '../src/features/payments/utils/receipt';
@@ -87,6 +88,53 @@ describe('payment details', () => {
   it('stores a saved card by its masked id', () => {
     const card = {id: 'Visa-4242-12/30', brand: 'Visa', last4: '4242', expiry: '12/30', name: 'Riya Sharma'};
     expect(mergeSavedCard([card], card)).toEqual([card]);
+  });
+});
+
+describe('server quote', () => {
+  it('keeps a free coupon as a claim and rejects an invented total', () => {
+    const quoted = normalizeCheckoutQuote({
+      productId: 'course-1',
+      title: 'GST Basics',
+      mrpMinor: 100,
+      discountMinor: 0,
+      coupon: 'welcome50',
+      couponDiscountMinor: 100,
+      totalMinor: 0,
+      currency: 'INR',
+      expiresAt: '2026-11-24T08:15:00.000Z',
+      methods: ['upi', 'card', 'netbanking', 'wallet'],
+    }, 'course-1');
+    expect(quoted.coupon).toBe('WELCOME50');
+    expect(isFreeClaim(quoted)).toBe(true);
+    expect(isFreeClaim({totalMinor: 0, couponDiscountMinor: 0})).toBe(false);
+    expect(quoteWithCoupon(quoted, 'WELCOME50')?.totalMinor).toBe(0);
+    expect(() => normalizeCheckoutQuote({totalMinor: Number.NaN}, 'course-1')).toThrow(/unavailable/);
+  });
+
+  it('reads payment status and does not treat a missing or authorized payment as success', () => {
+    expect(paymentRecordStatus('succeeded')).toBe('succeeded');
+    expect(paymentRecordStatus('paidAccessPending')).toBe('paidAccessPending');
+    expect(paymentRecordStatus('authorized')).toBe('paidAccessPending');
+    expect(paymentRecordStatus(undefined)).toBeUndefined();
+    expect(verificationFailed({
+      code: 'invalid_signature',
+      message: 'Payment could not be verified.',
+      retryable: false,
+      httpStatus: 400,
+    })).toBe(true);
+    expect(amountMismatch({
+      code: 'AMOUNT_MISMATCH',
+      message: 'Refresh the quote.',
+      retryable: false,
+      httpStatus: 400,
+    })).toBe(true);
+    expect(verificationFailed({
+      code: 'invalid_coupon',
+      message: 'This coupon is not valid for this course.',
+      retryable: false,
+      httpStatus: 400,
+    })).toBe(false);
   });
 });
 

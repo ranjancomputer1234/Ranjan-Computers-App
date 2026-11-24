@@ -22,6 +22,7 @@ import {
   useSessionStore,
 } from '../../core/session';
 import { getAccountScoped, setAccountScoped } from '../../core/storage';
+import {formatLearningTime} from '../../features/catalog/courseCopy';
 import {coursePriceHeadline, coursePriceLabel} from '../../features/catalog/coursePrice';
 import {pickLessonToOpen} from '../../features/catalog/pickLessonToOpen';
 import {useEnrolledCourseIds} from '../../features/catalog/useEnrolledCourseIds';
@@ -56,7 +57,8 @@ export function CourseDetailScreen() {
   const repos = useRepositories();
   const sessionStatus = useSessionStore(state => state.status);
   const userKey = accountKey();
-  const [tab, setTab] = useState<CourseTab>('lessons');
+  const [tab, setTab] = useState<CourseTab>('overview');
+  const choseTab = React.useRef(false);
   const [showAllLessons, setShowAllLessons] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [following, setFollowing] = useState(false);
@@ -93,6 +95,11 @@ export function CourseDetailScreen() {
   );
 
   useEffect(() => {
+    if (!data || choseTab.current) return;
+    setTab(alreadyEnrolled ? 'lessons' : 'overview');
+  }, [alreadyEnrolled, data]);
+
+  useEffect(() => {
     if (!data?.instructor) return;
     let current = true;
     void getAccountScoped(
@@ -126,6 +133,17 @@ export function CourseDetailScreen() {
   });
 
   const allLessons = useMemo(() => lessons.data ?? [], [lessons.data]);
+  const durationLabel = data?.durationLabel || formatLearningTime(
+    data?.durationMinutes
+      ?? (allLessons.reduce((total, lesson) => total + (lesson.durationSeconds ?? 0), 0) / 60 || undefined),
+  );
+  const syllabus = data?.syllabus?.length
+    ? data.syllabus
+    : allLessons.map(lesson => ({
+        title: lesson.title,
+        detail: lesson.notes && lesson.notes.length <= 160 ? lesson.notes : undefined,
+        durationMinutes: lesson.durationSeconds ? Math.round(lesson.durationSeconds / 60) : undefined,
+      }));
   const nextLesson = useMemo(
     () =>
       pickLessonToOpen(allLessons, {
@@ -346,7 +364,7 @@ export function CourseDetailScreen() {
                   {formatCount(data.learnerCount)} Learners
                 </Meta>
                 <Meta icon="clock" color="#7B1FA2">
-                  {(data.lessonCount ?? allLessons.length) || '—'} Lessons
+                  {durationLabel ?? `${(data.lessonCount ?? allLessons.length) || '—'} lessons`}
                 </Meta>
               </View>
             </ClayCard>
@@ -406,7 +424,10 @@ export function CourseDetailScreen() {
                   key={item}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: tab === item }}
-                  onPress={() => setTab(item)}
+                  onPress={() => {
+                    choseTab.current = true;
+                    setTab(item);
+                  }}
                   style={[styles.tab, tab === item && styles.tabOn]}
                 >
                   <AppText
@@ -511,6 +532,9 @@ export function CourseDetailScreen() {
                 description={data.description}
                 outcomes={data.outcomes}
                 prerequisites={data.prerequisites}
+                durationLabel={durationLabel}
+                lessonCount={data.lessonCount ?? allLessons.length}
+                syllabus={syllabus}
               />
             ) : null}
 
@@ -682,11 +706,21 @@ function OverviewTab({
   description,
   outcomes,
   prerequisites,
+  durationLabel,
+  lessonCount,
+  syllabus,
 }: {
   description?: string;
   outcomes?: string[];
   prerequisites?: string[];
+  durationLabel?: string;
+  lessonCount?: number;
+  syllabus: {title: string; detail?: string; durationMinutes?: number}[];
 }) {
+  const facts = [
+    durationLabel ? `Duration ${durationLabel}` : undefined,
+    lessonCount ? `${lessonCount} ${lessonCount === 1 ? 'lesson' : 'lessons'}` : undefined,
+  ].filter((item): item is string => Boolean(item));
   return (
     <View style={styles.tabContent}>
       <SectionHeader title="About this course" />
@@ -694,6 +728,11 @@ function OverviewTab({
         <AppText size={12.5} color={colors.text2} style={styles.bodyCopy}>
           {description ?? 'A detailed course overview will be available soon.'}
         </AppText>
+        {facts.length ? (
+          <AppText weight="700" size={12} color={colors.navy} style={styles.overviewFacts}>
+            {facts.join(' · ')}
+          </AppText>
+        ) : null}
       </ClayCard>
       {outcomes?.length ? (
         <>
@@ -705,6 +744,24 @@ function OverviewTab({
                 <AppText size={12} color={colors.ink} style={styles.bulletCopy}>
                   {outcome}
                 </AppText>
+              </View>
+            ))}
+          </ClayCard>
+        </>
+      ) : null}
+      {syllabus.length ? (
+        <>
+          <SectionHeader title="Syllabus" />
+          <ClayCard variant="white">
+            {syllabus.map((item, index) => (
+              <View key={`${item.title}-${index}`} style={styles.bulletRow}>
+                <AppText weight="800" size={12} color={colors.primary}>{index + 1}</AppText>
+                <View style={styles.bulletCopy}>
+                  <AppText weight="800" size={12.5} color={colors.navy}>{item.title}</AppText>
+                  <AppText size={12} color={colors.text2} style={styles.bodyCopy}>
+                    {[item.durationMinutes ? `${item.durationMinutes} min` : undefined, item.detail].filter(Boolean).join(' · ')}
+                  </AppText>
+                </View>
               </View>
             ))}
           </ClayCard>
@@ -883,6 +940,7 @@ const styles = createThemedStyles({
   followingBadge: { backgroundColor: colors.pastel.green },
   tabContent: { gap: 12 },
   bodyCopy: { lineHeight: 20 },
+  overviewFacts: { marginTop: 10 },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   bulletCopy: { flex: 1, lineHeight: 18 },
   reviewCard: { flexDirection: 'row', alignItems: 'center', gap: 14 },

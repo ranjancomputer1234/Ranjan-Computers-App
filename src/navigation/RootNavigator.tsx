@@ -7,6 +7,7 @@ import {themedScreen, useTheme} from '../theme/ThemeProvider';
 import type {RootStackParamList} from './types';
 import {TabNavigator} from './TabNavigator';
 import {
+  CompleteAddressScreen,
   LoginScreen,
   RegisterScreen,
   ForgotPasswordScreen,
@@ -27,6 +28,7 @@ import {navigationRef} from './navigationRef';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   const status = useSessionStore(s => s.status);
+  const addressPrompt = useSessionStore(s => s.addressPrompt);
   const hydrate = useSessionStore(s => s.hydrate);
   const [showSplash, setShowSplash] = React.useState(true);
   const preferencesHydrated = usePreferencesStore(state => state.hydrated);
@@ -77,9 +79,22 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
-      <Stack.Navigator screenOptions={screenOptions} initialRouteName={inApp ? 'Main' : onboardingComplete ? 'Login' : 'Onboarding'}>
+      <Stack.Navigator
+        screenOptions={screenOptions}
+        initialRouteName={
+          status === 'authenticated' && addressPrompt
+            ? 'CompleteAddress'
+            : inApp
+              ? 'Main'
+              : onboardingComplete
+                ? 'Login'
+                : 'Onboarding'
+        }>
         {inApp ? (
           <Stack.Group navigationKey={status}>
+            {status === 'authenticated' ? (
+              <Stack.Screen name="CompleteAddress" component={themedScreen(CompleteAddressScreen)} />
+            ) : null}
             <Stack.Screen name="Main" component={themedScreen(TabNavigator)} />
             {status === 'authenticated' ? <Stack.Group>
             <Stack.Screen name="DailyQuiz" component={themedScreen(DailyQuizScreen)} />

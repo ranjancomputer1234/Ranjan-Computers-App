@@ -1,6 +1,7 @@
 import {Alert, Share, Linking, NativeModules} from 'react-native';
 import RNBlobUtil from 'react-native-blob-util';
 import NetInfo from '@react-native-community/netinfo';
+import {ensureCourseStorage} from '../features/permissions/courseStorage';
 import {appConfig} from './config';
 import {getPreference} from './storage';
 
@@ -148,6 +149,7 @@ export const shareService = {
 export const downloadService = {
   async enqueue(url: string, fileName: string) {
     if (!/^https:\/\//i.test(url) || !/^[a-zA-Z0-9._-]+$/.test(fileName) || fileName.includes('..')) throw new Error('Invalid download.');
+    await ensureCourseStorage();
     const network = await NetInfo.fetch();
     if (!network.isConnected) throw new Error('Connect to the internet to download this file.');
     if (await getPreference('wifiOnly', true) && network.type !== 'wifi') throw new Error('Connect to Wi-Fi or change your download preference in Settings.');

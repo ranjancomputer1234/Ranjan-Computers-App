@@ -198,6 +198,8 @@ export function requiresLearnerAuth(method: string | undefined, url?: string): b
   if (verb === 'get' && path === '/me/notifications') return true;
   if (verb === 'patch' && /^\/me\/notifications\/[^/]+$/.test(path)) return true;
   if (verb === 'post' && path === '/me/notifications/clear') return true;
+  if (verb === 'put' && path === '/me/push-devices/current') return true;
+  if (verb === 'post' && path === '/me/push-devices/unregister') return true;
   if (
     verb === 'post' &&
     (path === '/checkout/quote' ||

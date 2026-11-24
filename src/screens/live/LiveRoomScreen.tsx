@@ -1,10 +1,11 @@
 import React from 'react';
-import {Alert, Pressable, ScrollView, TextInput, View} from 'react-native';
+import {Alert, Pressable, TextInput, View} from 'react-native';
 import {useIsFocused, useNavigation, useRoute} from '@react-navigation/native';
 import {isAppError, isFeatureUnavailable} from '../../core/api/http';
 import {useSessionStore} from '../../core/session';
 import {brand, colors, gradients} from '../../theme';
 import {AppText, ClayButton, ErrorState, LoadingBlock} from '../../components/ui';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Chalkboard} from '../../assets/illustrations';
 import {Gradient} from '../../components/ui/Gradient';
@@ -81,7 +82,7 @@ export function LiveRoomScreen() {
           ) : null}
         </View>
       </View>
-      <ScrollView style={styles.roomScroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView style={styles.roomScroll} contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
 
         {cls.isLoading || join.isLoading ? <LoadingBlock /> : null}
         {cls.isError ? <ErrorState message="This class is unavailable." onRetry={() => cls.refetch()} /> : null}
@@ -102,7 +103,8 @@ export function LiveRoomScreen() {
               <View style={{flex: 1, gap: 5}}>
                 <AppText weight="800" size={12} color={colors.navy}>{cls.data.title}</AppText>
                 <AppText size={10} color={colors.text2}>
-                  {cls.data.batch ?? 'RACI Batch'} · {new Date(cls.data.startsAt).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'})} {new Date(cls.data.startsAt).toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})} · {cls.data.durationLabel ?? 'Live class'}
+                  {cls.data.scheduleLabel
+                    ?? `${cls.data.batch ?? 'RACI Batch'} · ${new Date(cls.data.startsAt).toLocaleDateString('en-IN', {day: 'numeric', month: 'short'})} ${new Date(cls.data.startsAt).toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})} · ${cls.data.durationLabel ?? 'Live class'}`}
                 </AppText>
               </View>
             </View>
@@ -176,7 +178,7 @@ export function LiveRoomScreen() {
           </View>
         ) : null}
         {hand.isError ? <AppText color={colors.error} size={11}>Could not update your hand. Please retry.</AppText> : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

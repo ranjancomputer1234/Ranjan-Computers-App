@@ -43,6 +43,10 @@ describe('playback source', () => {
     expect(playableStream({type: 'mux_hls', url: 'https://stream.example/index.m3u8'})?.mediaType).toBe('m3u8');
     expect(playableStream({type: 'progressive_mp4', url: 'http://cdn.example/lesson.mp4'})).toBeUndefined();
     expect(playableStream({type: 'dash', url: 'https://cdn.example/lesson.mpd'})).toBeUndefined();
+    expect(playableStream({
+      type: 'progressive_mp4',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+    })).toBeUndefined();
   });
 
   it('lets the player sniff files that are not hls', () => {

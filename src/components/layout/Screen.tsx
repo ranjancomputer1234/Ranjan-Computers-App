@@ -453,10 +453,13 @@ export function Screen({
   const insets = useSafeAreaInsets();
   const tabHeight = React.useContext(BottomTabBarHeightContext);
   const theme = useTheme();
+
   return (
     <KeyboardAvoidingView
       {...pullGestureHandlers}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      enabled={Platform.OS === 'ios'}
+      behavior="padding"
+      keyboardVerticalOffset={insets.top}
       style={[
         styles.screen,
         {

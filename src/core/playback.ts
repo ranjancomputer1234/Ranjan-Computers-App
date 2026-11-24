@@ -12,6 +12,8 @@ export function playableStream(
   const url = playback?.url?.trim() ?? '';
   const type = playback?.type ?? '';
   if (!url || !/^https:\/\//i.test(url)) return undefined;
+  // Public sample clips are not course videos. The lesson notes are the study material.
+  if (/gtv-videos-bucket|\/sample\/ForBigger|commondatastorage\.googleapis\.com\/gtv/i.test(url)) return undefined;
   if (type === 'progressive_mp4') return {url, mediaType: 'mp4'};
   if (HLS_TYPES.has(type)) return {url, mediaType: 'm3u8'};
   return undefined;

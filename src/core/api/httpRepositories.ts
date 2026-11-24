@@ -1,6 +1,18 @@
+import {
+  isInternalTestCourse,
+  isInternalTestTitle,
+  isPlaceholderCopy,
+  lessonNotes,
+  presentCourse,
+  syllabusItems,
+} from '../../features/catalog/courseCopy';
+import {loginPhone} from '../../features/auth/schema';
+import {compactAddress} from '../../features/location/address';
 import {isPublishedResult} from './resultPublication';
 import {playableStream} from '../playback';
 import {visibleLiveClasses} from '../../features/live/visibleClasses';
+import {normalizeCheckoutQuote} from '../../features/payments/couponQuote';
+import {paymentRecordStatus} from '../../features/payments/paymentOutcome';
 import {http, isAppError, tokenStore} from './http';
 import {appConfig} from '../config';
 import {learnerDeviceIdentity} from '../installation';
@@ -51,14 +63,21 @@ type ApiLearner = {
   lastName: string;
   email: string;
   phone?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  placeId?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   accountState: LearnerProfile['accountState'];
   verifiedEmail?: boolean;
   verifiedPhone?: boolean;
   batchId?: string | null;
 };
 
-type ApiAuth = {accessToken: string; learner: ApiLearner};
+type ApiAuth = {accessToken: string; learner: ApiLearner; isNewUser?: boolean};
 
 type ApiAccess = {
   granted: boolean;
@@ -102,6 +121,11 @@ type ApiCourse = {
   deliveryType?: 'standard' | 'semester_certification';
   coverImageUrl?: string | null;
   estimatedMinutes?: number | null;
+  outcomes?: string[] | null;
+  learningOutcomes?: string[] | null;
+  prerequisites?: string[] | null;
+  durationLabel?: string | null;
+  syllabus?: Array<{title?: string | null; detail?: string | null; description?: string | null; durationMinutes?: number | null}> | string[] | null;
   lessons?: ApiLesson[];
   price?: {amountMinor?: number | null; currency?: string | null} | null;
   access?: ApiAccess | null;
@@ -314,7 +338,16 @@ function toProfile(learner: ApiLearner): LearnerProfile {
     fullName: fullName || learner.email,
     email: learner.email,
     phone: learner.phone || undefined,
-    city: learner.city || undefined,
+    ...compactAddress({
+      addressLine1: learner.addressLine1 || undefined,
+      addressLine2: learner.addressLine2 || undefined,
+      city: learner.city || undefined,
+      state: learner.state || undefined,
+      pincode: learner.pincode || undefined,
+      placeId: learner.placeId || undefined,
+      latitude: coord(learner.latitude),
+      longitude: coord(learner.longitude),
+    }),
     interests: [],
     stats: {courses: 0, tests: 0, streakDays: 0},
     achievements: [],
@@ -323,6 +356,12 @@ function toProfile(learner: ApiLearner): LearnerProfile {
     verifiedPhone: learner.verifiedPhone,
     batchId: learner.batchId || undefined,
   };
+}
+
+function coord(value: number | string | null | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
 }
 
 function toSession(auth: ApiAuth): {tokens: SessionTokens; profile: LearnerProfile} {
@@ -377,13 +416,26 @@ function toMoney(price: ApiCourse['price']): Course['price'] {
   return {amountMinor: Math.round(amountMinor), currency: currency || 'INR'};
 }
 
+function cleanCopy(value?: string | null): string | undefined {
+  const textValue = text(value);
+  if (!textValue || isPlaceholderCopy(textValue)) return undefined;
+  return textValue;
+}
+
+function toSyllabus(course: ApiCourse): Course['syllabus'] {
+  return syllabusItems(course.syllabus);
+}
+
 function toCourse(course: ApiCourse): Course {
   const access = toAccess(course.access, course.commercialMode);
   const paid = course.commercialMode !== 'free';
-  return {
+  const minutes = typeof course.estimatedMinutes === 'number' && course.estimatedMinutes > 0
+    ? course.estimatedMinutes
+    : undefined;
+  return presentCourse({
     id: course.id,
     title: course.title,
-    subtitle: course.summary || course.shortTitle || undefined,
+    subtitle: cleanCopy(course.summary) || cleanCopy(course.shortTitle) || undefined,
     kind: 'course',
     pricing: paid ? 'paid' : 'free',
     price: paid ? toMoney(course.price) : undefined,
@@ -392,12 +444,22 @@ function toCourse(course: ApiCourse): Course {
     letter: course.shortTitle?.charAt(0) || course.title.charAt(0),
     imageUrl: course.coverImageUrl || undefined,
     access,
-    description: course.description || course.summary || undefined,
+    description: cleanCopy(course.description),
+    outcomes: stringList(course.learningOutcomes) ?? stringList(course.outcomes),
+    prerequisites: stringList(course.prerequisites),
+    syllabus: toSyllabus(course),
+    durationMinutes: minutes,
+    durationLabel: text(course.durationLabel),
     lessonCount: course.lessons?.length,
     isSemester: course.deliveryType === 'semester_certification',
     purchased: access.state === 'granted' && course.commercialMode !== 'free',
     enrolled: course.access?.source === 'enrollment',
-  };
+  }, course.slug);
+}
+
+function stringList(value?: string[] | null): string[] | undefined {
+  const items = (value ?? []).map(item => item.trim()).filter(item => item && !isPlaceholderCopy(item));
+  return items.length ? items : undefined;
 }
 
 function toLesson(lesson: ApiLesson, courseId = lesson.courseId ?? '', granted = true): Lesson {
@@ -408,7 +470,7 @@ function toLesson(lesson: ApiLesson, courseId = lesson.courseId ?? '', granted =
     index: lesson.sortOrder + 1,
     durationSeconds: lesson.durationMinutes ? lesson.durationMinutes * 60 : undefined,
     state: lesson.isPreview ? 'preview' : granted ? 'available' : 'locked',
-    notes: lesson.description || undefined,
+    notes: lessonNotes(courseId, lesson.id, lesson.title, lesson.description),
   };
 }
 
@@ -748,13 +810,18 @@ function toLiveClass(row: Record<string, unknown>): LiveClass {
   const instructor = row.instructor && typeof row.instructor === 'object' ? text((row.instructor as {name?: string}).name) : undefined;
   return {
     id: String(row.id),
+    courseId: text(row.courseId),
     title: text(row.title) ?? 'Live class',
     startsAt: text(row.startsAt) ?? text(row.startAt) ?? new Date().toISOString(),
     endsAt: text(row.endsAt) ?? text(row.endAt) ?? text(row.startsAt) ?? new Date().toISOString(),
     instructorName: text(row.instructorName) ?? instructor ?? 'Instructor',
     status,
     batch: text(row.batch) ?? text(row.batchName),
+    scheduleLabel: text(row.scheduleLabel),
+    startsInMinutes: typeof row.startsInMinutes === 'number' ? row.startsInMinutes : row.startsInMinutes === null ? null : undefined,
+    durationMinutes: typeof row.durationMinutes === 'number' ? row.durationMinutes : undefined,
     durationLabel: text(row.durationLabel),
+    canSetReminder: typeof row.canSetReminder === 'boolean' ? row.canSetReminder : undefined,
     viewerCount: typeof row.viewerCount === 'number' ? row.viewerCount : undefined,
     recordingAvailable: Boolean(row.recordingAvailable),
     reminderSet: Boolean(row.reminderSet),
@@ -816,20 +883,27 @@ function courseFromRow(row: Record<string, unknown>): Course {
   return toCourse(row as unknown as ApiCourse);
 }
 
+function publishedCourses(courses: ApiCourse[]): Course[] {
+  return courses.filter(course => !isInternalTestCourse(course)).map(toCourse);
+}
+
 async function listCourses(query: CatalogQuery): Promise<Page<CatalogItem>> {
   const payload = await getOptional<unknown>('/courses', catalogParams(query));
   const page = payload ? asCatalogPage(payload, courseFromRow) : undefined;
-  if (page) return page;
+  if (page) {
+    const items = page.items.filter(item => !isInternalTestCourse(item));
+    return {...page, items, total: page.total && page.total >= page.items.length ? page.total - (page.items.length - items.length) : items.length};
+  }
 
   // GET /courses is not on the learner API yet. Until the handover list exists,
   // show featured courses from /home, or search hits when the learner typed a query.
   let items: Course[];
   if (query.search?.trim()) {
     const result = await get<ApiSearch>('/search', {q: query.search.trim()});
-    items = result.courses.map(toCourse);
+    items = publishedCourses(result.courses);
   } else {
     const home = await get<ApiHome>('/home');
-    items = (home.featuredCourses ?? []).map(toCourse);
+    items = publishedCourses(home.featuredCourses ?? []);
   }
   if (query.pricing && query.pricing !== 'all') {
     items = items.filter(item => item.pricing === query.pricing);
@@ -986,6 +1060,9 @@ function toNotification(row: Record<string, unknown>): NotificationItem {
 }
 
 async function learnerNotifications(cursor?: string, category?: string): Promise<Page<NotificationItem>> {
+  if (!tokenStore.getAccessToken()) {
+    return localNotificationPage(accountKey(), await publishedLiveClasses().catch(() => []), category);
+  }
   const params: Record<string, string> = {};
   if (cursor) params.cursor = cursor;
   if (category && category !== 'all') params.category = category;
@@ -1060,24 +1137,7 @@ function providerOrderId(row: Record<string, unknown>): string | undefined {
 }
 
 function paymentStatus(value: unknown): Order['status'] | undefined {
-  const status = text(value)?.toLowerCase();
-  if (!status) return undefined;
-  if (['succeeded', 'paid', 'captured', 'authorized', 'success', 'verified'].includes(status)) return 'succeeded';
-  if (['failed', 'failure'].includes(status)) return 'failed';
-  if (['cancelled', 'canceled'].includes(status)) return 'cancelled';
-  if (status === 'pending' || status === 'paidaccesspending') return 'paidAccessPending';
-  const known: Order['status'][] = [
-    'idle',
-    'creatingOrder',
-    'awaitingProvider',
-    'verifying',
-    'paidAccessPending',
-    'succeeded',
-    'cancelled',
-    'failed',
-    'unknownNeedsRecheck',
-  ];
-  return known.find(item => item.toLowerCase() === status);
+  return paymentRecordStatus(value);
 }
 
 function checkoutOrder(input: {
@@ -1090,6 +1150,7 @@ function checkoutOrder(input: {
   status: Order['status'];
   paidAt?: string;
   receiptId?: string;
+  providerKeyId?: string;
 }): Order {
   const amount = Math.max(0, Math.round(input.amountMinor));
   return {
@@ -1108,6 +1169,7 @@ function checkoutOrder(input: {
     method: input.method,
     paidAt: input.paidAt,
     receiptId: input.receiptId,
+    providerKeyId: input.providerKeyId,
   };
 }
 
@@ -1116,7 +1178,7 @@ function orderFromVerify(raw: unknown, orderId: string, courseId?: string): Orde
   const nested = asRecord(row.order) ?? asRecord(row.payment) ?? row;
   const explicit = paymentStatus(nested.status) ?? paymentStatus(row.status);
   const failed = row.success === false || row.verified === false || row.paid === false;
-  const status = explicit ?? (failed ? 'failed' : 'succeeded');
+  const status = explicit ?? (failed ? 'failed' : 'unknownNeedsRecheck');
   return checkoutOrder({
     id: providerOrderId(nested) || providerOrderId(row) || orderId,
     productId: text(row.courseId) || text(nested.courseId) || text(row.productId) || courseId || '',
@@ -1149,10 +1211,11 @@ export function createHttpRepositories(): Repositories {
   return {
     auth: {
       login: async (identifier, password) => {
-        if (!identifier.includes('@')) {
-          return unavailable('Phone-number sign-in');
-        }
-        return toSession(await post<ApiAuth>('/auth/login', {email: identifier.toLowerCase(), password}));
+        const phone = loginPhone(identifier);
+        const body = phone
+          ? {phone, password}
+          : {email: identifier.trim().toLowerCase(), password};
+        return toSession(await post<ApiAuth>('/auth/login', body));
       },
       register: async input => {
         const split = splitName(input.fullName ?? '');
@@ -1167,7 +1230,7 @@ export function createHttpRepositories(): Repositories {
           email: input.email.toLowerCase(),
           password: input.password,
           ...(normalizePhone(input.phone) ? {phone: normalizePhone(input.phone)} : {}),
-          ...(input.city?.trim() ? {city: input.city.trim()} : {}),
+          ...compactAddress(input),
         };
         const started = await post<ApiAuth & {challengeId?: string}>('/auth/register', body);
         const challengeId = started.challengeId?.trim();
@@ -1212,7 +1275,17 @@ export function createHttpRepositories(): Repositories {
       resetPassword: async (resetToken, password) => {
         await post('/auth/password/reset', {resetToken, newPassword: password});
       },
-      exchangeGoogle: () => unavailable('Google sign-in'),
+      exchangeGoogle: async (idToken, address) => {
+        try {
+          const auth = await post<ApiAuth>('/auth/google', {idToken, ...compactAddress(address)});
+          return {...toSession(auth), isNewUser: auth.isNewUser === true};
+        } catch (error) {
+          if (isAppError(error) && (error.httpStatus === 404 || error.httpStatus === 405)) {
+            return unavailable('Google sign-in');
+          }
+          throw error;
+        }
+      },
       logout: async () => {
         try {
           await post('/auth/logout');
@@ -1223,10 +1296,11 @@ export function createHttpRepositories(): Repositories {
       me: fetchProfile,
       updateMe: async profile => {
         const name = profile.fullName ? splitName(profile.fullName) : {};
+        const addressKeys = ['addressLine1', 'addressLine2', 'city', 'state', 'pincode', 'placeId', 'latitude', 'longitude'] as const;
         const body = {
           ...name,
           ...(profile.phone !== undefined ? {phone: normalizePhone(profile.phone)} : {}),
-          ...(profile.city !== undefined ? {city: profile.city} : {}),
+          ...(addressKeys.some(key => profile[key] !== undefined) ? compactAddress(profile) : {}),
           appVersion: appConfig.versionName,
         };
         return toProfile(await patch<ApiLearner>('/me', body));
@@ -1256,7 +1330,7 @@ export function createHttpRepositories(): Repositories {
             }];
           }),
           sections: home.sections.map(toSection),
-          featuredCourses: home.featuredCourses.map(toCourse),
+          featuredCourses: publishedCourses(home.featuredCourses),
           liveClasses,
           continueLearning: home.continuing.length
             ? home.continuing.slice(0, 5).map(current => ({
@@ -1285,7 +1359,7 @@ export function createHttpRepositories(): Repositories {
         if (!q.trim()) return emptyPage([]);
         if (type && type !== 'COURSE') return emptyPage([]);
         const result = await get<ApiSearch>('/search', {q: q.trim()});
-        const courses = result.courses.map(course => ({...toCourse(course), badge: 'COURSE'}));
+        const courses = publishedCourses(result.courses).map(course => ({...course, badge: 'COURSE'}));
         const lessons = type
           ? []
           : result.lessons.map(lesson => ({
@@ -1471,7 +1545,10 @@ export function createHttpRepositories(): Repositories {
     content: {
       news: async (categoryId, cursor) => {
         const payload = await getOptional<unknown>('/news', {categoryId, cursor});
-        return payload ? pageOf(payload, toArticle) : emptyPage();
+        if (!payload) return emptyPage();
+        const page = pageOf(payload, toArticle);
+        const items = page.items.filter(item => !isInternalTestTitle(item.title));
+        return {...page, items, total: items.length};
       },
       article: async id => toArticle(await get<Record<string, unknown>>(`/news/${id}`)),
       topic: async id => toTopic(await get<Record<string, unknown>>(`/awareness/topics/${id}`)),
@@ -1530,39 +1607,48 @@ export function createHttpRepositories(): Repositories {
           provider: row.provider?.trim() || undefined,
         };
       },
-      quote: (productId, coupon) => post<Order['quote'] & {productId: string; title: string}>('/checkout/quote', {productId, ...(coupon ? {coupon} : {})}),
+      quote: async (productId, coupon) => {
+        const code = coupon?.trim().toUpperCase();
+        const raw = await post<Partial<Order['quote']> & {productId?: string; title?: string}>(
+          '/checkout/quote',
+          {productId, ...(code ? {coupon: code} : {})},
+        );
+        return normalizeCheckoutQuote(raw, productId);
+      },
       createOrder: async (productId, coupon, idempotencyKey, method, charge) => {
         const courseId = charge?.courseId || productId;
         const amountMinor = charge?.amountMinor;
-        const body: Record<string, unknown> =
-          typeof amountMinor === 'number' && Number.isFinite(amountMinor) && amountMinor > 0
-            ? {amount: Math.round(amountMinor), currency: charge?.currency || 'INR', courseId}
-            : {orderId: productId, courseId};
-        if (coupon) body.coupon = coupon;
+        if (typeof amountMinor !== 'number' || !Number.isFinite(amountMinor) || amountMinor < 0) {
+          throw new Error('This purchase is unavailable.');
+        }
+        const code = coupon?.trim().toUpperCase();
+        const body: Record<string, unknown> = {
+          amount: Math.round(amountMinor),
+          currency: charge?.currency || 'INR',
+          courseId,
+        };
+        if (code) body.coupon = code;
         if (method) body.method = method;
         const headers = idempotencyKey ? {'Idempotency-Key': idempotencyKey} : undefined;
-        let created: Record<string, unknown>;
-        try {
-          created = await post<Record<string, unknown>>('/payments/create-order', body, headers);
-        } catch (error) {
-          const rejectedField = isAppError(error) && error.httpStatus === 400 && /should not exist/i.test(error.message);
-          if (!rejectedField) throw error;
-          const amountOnly =
-            typeof amountMinor === 'number' && Number.isFinite(amountMinor) && amountMinor > 0
-              ? {amount: Math.round(amountMinor)}
-              : {orderId: productId};
-          created = await post<Record<string, unknown>>('/payments/create-order', amountOnly, headers);
+        const created = await post<Record<string, unknown>>('/payments/create-order', body, headers);
+        const serverStatus = paymentStatus(created.status);
+        const amount = numberField(created, ['amount', 'amountMinor']) ?? Math.round(amountMinor);
+        const id = serverStatus === 'succeeded'
+          ? text(created.id) || text(created.instituteOrderId) || providerOrderId(created)
+          : providerOrderId(created);
+        if (!id || (serverStatus !== 'succeeded' && !id.startsWith('order_'))) {
+          throw new Error('Payment could not be started.');
         }
-        const id = providerOrderId(created);
-        if (!id) throw new Error('Payment could not be started.');
         const order = checkoutOrder({
           id,
-          productId: courseId,
-          amountMinor: numberField(created, ['amount', 'amountMinor']) ?? (typeof amountMinor === 'number' ? amountMinor : 0),
+          productId: text(created.courseId) || courseId,
+          amountMinor: amount,
           currency: text(created.currency) || charge?.currency || 'INR',
           method,
-          status: 'awaitingProvider',
-          receiptId: text(created.receipt),
+          status: serverStatus === 'succeeded' ? 'succeeded' : 'awaitingProvider',
+          paidAt: serverStatus === 'succeeded' ? text(created.paidAt) || new Date().toISOString() : undefined,
+          receiptId: text(created.receipt) || text(created.instituteOrderId),
+          providerKeyId: text(created.key_id) || text(created.keyId),
         });
         rememberOrder(order);
         return order;
@@ -1587,19 +1673,7 @@ export function createHttpRepositories(): Repositories {
           razorpay_payment_id: providerPayload?.razorpay_payment_id,
           razorpay_signature: providerPayload?.razorpay_signature,
         };
-        let raw: unknown;
-        try {
-          raw = await post<unknown>('/payments/verify-payment', payload);
-        } catch (error) {
-          const rejectedField = isAppError(error) && error.httpStatus === 400 && /should not exist/i.test(error.message);
-          if (!rejectedField) throw error;
-          raw = await post<unknown>('/payments/verify-payment', {
-            orderId,
-            razorpay_order_id: providerPayload?.razorpay_order_id,
-            razorpay_payment_id: providerPayload?.razorpay_payment_id,
-            razorpay_signature: providerPayload?.razorpay_signature,
-          });
-        }
+        const raw = await post<unknown>('/payments/verify-payment', payload);
         const order = orderFromVerify(raw, orderId, courseId);
         rememberOrder(order);
         if (order.id !== orderId) notedOrders.set(orderId, order);
@@ -1625,8 +1699,35 @@ export function createHttpRepositories(): Repositories {
       notifications: (cursor, category) => learnerNotifications(cursor, category),
       markRead: id => markLearnerNotificationRead(id),
       clearAll: () => clearLearnerNotifications(),
-      registerPushDevice: async () => undefined,
-      unregisterPushDevice: async () => undefined,
+      registerPushDevice: async device => {
+        const token = device.token?.trim() ?? '';
+        if (token.length < 8) return;
+        if (tokenStore.getAccessToken()) {
+          await put('/me/push-devices/current', {
+            token,
+            platform: 'android',
+            notifClasses: device.notifClasses !== false,
+            notifTests: device.notifTests !== false,
+            notifNews: device.notifNews !== false,
+            notifOffers: device.notifOffers !== false,
+          });
+          return;
+        }
+        await put('/push-devices/guest', {
+          token,
+          platform: 'android',
+          ...(device.installationId ? {installationId: device.installationId} : {}),
+          notifNews: device.notifNews !== false,
+        });
+      },
+      unregisterPushDevice: async token => {
+        const value = token.trim();
+        if (tokenStore.getAccessToken()) {
+          await post('/me/push-devices/unregister', value.length >= 8 ? {token: value} : {});
+          return;
+        }
+        if (value.length >= 8) await post('/push-devices/guest/unregister', {token: value});
+      },
       documents: async kind => {
         const [rows, profile] = await Promise.all([
           get<ApiDocument[]>('/me/documents'),

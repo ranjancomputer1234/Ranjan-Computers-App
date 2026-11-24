@@ -1,5 +1,5 @@
 import React from 'react';
-import {Alert, Pressable, ScrollView, TextInput, View, type TextInputProps} from 'react-native';
+import {Alert, Pressable, TextInput, View, type TextInputProps} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useRepositories} from '../../core/di';
@@ -8,10 +8,13 @@ import {accountKey, useSessionStore} from '../../core/session';
 import {useAsyncAction} from '../../core/useAsyncAction';
 import {colors, gradients} from '../../theme';
 import {AppText} from '../../components/ui';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
 import {Icon, type IconName} from '../../assets/icons';
 import type {ProfileStackParamList} from '../../navigation/types';
+import {blankAddress, compactAddress, toAddressForm, type AddressForm} from '../../features/location/address';
+import {AddressField} from '../auth/AddressField';
 import {styles} from './styles';
 
 type Nav = NativeStackNavigationProp<ProfileStackParamList>;
@@ -30,26 +33,28 @@ export function EditProfileScreen() {
       name: profile?.fullName ?? '',
       email: profile?.email ?? '',
       phone: digitsFromPhone(profile?.phone),
-      city: profile?.city ?? '',
+      address: toAddressForm(profile),
     }),
     [profile],
   );
   const [name, setName] = React.useState(initial.name);
   const [phone, setPhone] = React.useState(initial.phone);
-  const [city, setCity] = React.useState(initial.city);
+  const [address, setAddress] = React.useState<AddressForm>(initial.address);
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const allowingLeave = React.useRef(false);
 
   React.useEffect(() => {
     setName(initial.name);
     setPhone(initial.phone);
-    setCity(initial.city);
+    setAddress(initial.address);
   }, [initial]);
 
+  const savedAddress = compactAddress(initial.address);
+  const nextAddress = compactAddress(address);
   const dirty =
     name.trim() !== initial.name.trim() ||
     phone !== initial.phone ||
-    city.trim() !== initial.city.trim();
+    JSON.stringify(savedAddress) !== JSON.stringify(nextAddress);
 
   const leave = React.useCallback(() => {
     allowingLeave.current = true;
@@ -83,8 +88,8 @@ export function EditProfileScreen() {
     if (phone && phone.length !== 10) {
       nextErrors.phone = 'Enter a 10-digit mobile number.';
     }
-    if (city.trim().length > 100) {
-      nextErrors.city = 'City must be 100 characters or fewer.';
+    if (address.pincode && !/^\d{6}$/.test(address.pincode)) {
+      nextErrors.address = 'Enter a 6-digit PIN code.';
     }
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
@@ -94,7 +99,8 @@ export function EditProfileScreen() {
     const next = await repos.auth.updateMe({
       fullName: name.trim(),
       phone: phone ? `+91${phone}` : undefined,
-      city: city.trim(),
+      ...blankAddress(),
+      ...nextAddress,
     });
     useSessionStore.getState().setProfile(next);
     queryClient.setQueryData(queryKeys.profile(accountKey()), next);
@@ -125,8 +131,7 @@ export function EditProfileScreen() {
         }
       />
 
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.editPage}>
         <View style={styles.editIdentity}>
@@ -169,14 +174,13 @@ export function EditProfileScreen() {
           maxLength={10}
           error={fieldErrors.phone}
         />
-        <EditField
-          label="City"
-          icon="pin"
-          value={city}
-          onChangeText={setCity}
-          maxLength={100}
-          autoComplete="postal-address-locality"
-          error={fieldErrors.city}
+        <AddressField
+          value={address}
+          error={fieldErrors.address}
+          onChange={next => {
+            setAddress(next);
+            if (fieldErrors.address) setFieldErrors(current => ({...current, address: ''}));
+          }}
         />
 
         {save.error ? (
@@ -210,7 +214,7 @@ export function EditProfileScreen() {
             </Gradient>
           </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

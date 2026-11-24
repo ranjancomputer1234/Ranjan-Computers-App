@@ -40,6 +40,14 @@ set APP_HOME=%DIRNAME%
 @rem Resolve any "." and ".." in APP_HOME to make it shorter.
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
+@rem Cursor points GRADLE_USER_HOME at a deep temp cache. Use the normal
+@rem user cache so native builds do not depend on that disposable path.
+echo %GRADLE_USER_HOME% | findstr /I /C:"cursor-sandbox-cache" >nul
+if not errorlevel 1 (
+  set "GRADLE_USER_HOME=%USERPROFILE%\.gradle"
+  echo Gradle user home is inside a Cursor sandbox cache. Using %USERPROFILE%\.gradle instead. 1>&2
+)
+
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 

@@ -35,6 +35,7 @@ type NativeReminderModule = {
 };
 
 const nativeReminders = NativeModules.RaciReminders as NativeReminderModule | undefined;
+const NOTIFICATION_ASKED = 'notificationPermissionAsked';
 const LEARNING_REMINDER_ID = 'learning-daily';
 const CLASS_REMINDER_PREFIX = 'live-class-';
 export const LIVE_CLASS_REMINDER_LEAD_MINUTES = 15;
@@ -44,8 +45,22 @@ export function hasNativeReminderSupport(): boolean {
   return Boolean(nativeReminders);
 }
 
+function needsNotificationPrompt(): boolean {
+  return Platform.OS === 'android' && Number(Platform.Version) >= 33;
+}
+
 export async function getReminderPermission(): Promise<ReminderPermission> {
-  if (!nativeReminders) return 'unavailable';
+  if (needsNotificationPrompt()) {
+    try {
+      const granted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      if (granted) return 'authorized';
+      const asked = await getPreference(NOTIFICATION_ASKED, false);
+      return asked ? 'denied' : 'not_determined';
+    } catch {
+      return 'unavailable';
+    }
+  }
+  if (!nativeReminders) return Platform.OS === 'android' ? 'authorized' : 'unavailable';
   try {
     return await nativeReminders.permissionStatus();
   } catch {
@@ -53,17 +68,45 @@ export async function getReminderPermission(): Promise<ReminderPermission> {
   }
 }
 
+let notificationRequest: Promise<ReminderPermission> | null = null;
+
 export async function requestReminderPermission(): Promise<ReminderPermission> {
-  if (!nativeReminders) return 'unavailable';
+  if (notificationRequest) return notificationRequest;
+  notificationRequest = askForNotifications().finally(() => {
+    notificationRequest = null;
+  });
+  return notificationRequest;
+}
+
+async function askForNotifications(): Promise<ReminderPermission> {
   try {
-    if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
-      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    if (needsNotificationPrompt()) {
+      const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS, {
+        title: 'Allow notifications',
+        message: 'RACI sends class reminders, test updates, and institute announcements.',
+        buttonPositive: 'Allow',
+        buttonNegative: 'Not now',
+      });
+      await setPreference(NOTIFICATION_ASKED, true);
       return result === PermissionsAndroid.RESULTS.GRANTED ? 'authorized' : 'denied';
     }
+    if (!nativeReminders) return Platform.OS === 'android' ? 'authorized' : 'unavailable';
     return await nativeReminders.requestPermission();
   } catch {
     return 'denied';
   }
+}
+
+/** Shows the system notification prompt once, the first time the home screen is ready. */
+export async function promptNotificationAccessOnce(): Promise<ReminderPermission | null> {
+  if (!needsNotificationPrompt()) return null;
+  if (await getPreference(NOTIFICATION_ASKED, false)) return null;
+  const current = await getReminderPermission();
+  if (current === 'authorized' || current === 'unavailable') {
+    await setPreference(NOTIFICATION_ASKED, true);
+    return null;
+  }
+  return requestReminderPermission();
 }
 
 export function permissionAllowsReminders(permission: ReminderPermission): boolean {

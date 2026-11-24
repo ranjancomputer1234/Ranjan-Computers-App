@@ -55,15 +55,40 @@ export function NotificationSettingsScreen() {
             <View style={styles.copy}>
               <AppText weight="800" size={12} color={theme.colors.navy}>{t('deviceAlerts')}</AppText>
               <AppText size={10} color={theme.colors.text2}>
-                {appConfig.pushProvider === 'none'
-                  ? t('deviceAlertsSetup')
-                  : permission === 'authorized' ? t('deviceAlertsOn') : t('deviceAlertsOff')}
+                {permission === 'authorized' ? t('deviceAlertsOn') : permission === 'unavailable' ? t('deviceAlertsSetup') : t('deviceAlertsOff')}
               </AppText>
             </View>
-            {appConfig.pushProvider !== 'none' && permission !== 'authorized' ? (
+            {permission !== 'authorized' && permission !== 'unavailable' ? (
               <ClayButton compact label={t('enableAlerts')} onPress={() => void enableDeviceAlerts()} />
             ) : null}
           </View>
+        </View>
+        <AppText style={styles.groupHead} size={9.5} weight="800" color={theme.colors.text3}>INSTITUTE</AppText>
+        <View style={styles.group}>
+          <PrefRow
+            icon="news"
+            bg={theme.colors.pastel.sky ?? theme.colors.pastel.blue}
+            color={theme.colors.primary}
+            title={t('notifAnnouncements')}
+            subtitle={t('notifAnnouncementsHint')}
+            value={prefs.notifAnnouncements}
+            onValueChange={async value => {
+              if (!value) {
+                prefs.setNotifAnnouncements(false);
+                return;
+              }
+              const result = await requestReminderPermission();
+              setPermission(result);
+              if (result === 'denied') {
+                Alert.alert(t('reminderPermissionTitle'), t('reminderPermissionBody'), [
+                  {text: t('cancel'), style: 'cancel'},
+                  {text: t('openSettings'), onPress: () => void openReminderSettings()},
+                ]);
+                return;
+              }
+              prefs.setNotifAnnouncements(true);
+            }}
+          />
         </View>
         <AppText style={styles.groupHead} size={9.5} weight="800" color={theme.colors.text3}>ALERT TYPES</AppText>
         <View style={styles.group}>
@@ -136,7 +161,7 @@ export function NotificationSettingsScreen() {
         </View>
         {appConfig.pushProvider === 'none' ? (
           <AppText size={12} color={theme.colors.text2} style={styles.modalHint}>
-            Remote alerts need android/app/google-services.json. Admin messages remain available in the in-app inbox; learning and live-class reminders still use local device notifications.
+            Remote alerts need android/app/google-services.json. Institute announcements, class reminders and the in-app inbox still work on this device after you allow notifications. No account is required for general announcements.
           </AppText>
         ) : null}
       </ScrollView>

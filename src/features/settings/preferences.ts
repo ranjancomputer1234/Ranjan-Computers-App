@@ -29,6 +29,8 @@ export const DEFAULT_PREFERENCES = {
   notifTests: true,
   notifNews: true,
   notifOffers: true,
+  // General institute announcements stay off until the person allows notifications.
+  notifAnnouncements: false,
   onboardingComplete: false,
   learningGoal: null as LearningGoal | null,
 };

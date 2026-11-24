@@ -1,3 +1,4 @@
+import {readInstituteAnnouncements} from '../features/notifications/announcementStore';
 import {getAccountScoped, getPreference, setAccountScoped} from './storage';
 import type {LiveClass, NotificationItem, Page} from './types';
 
@@ -153,7 +154,10 @@ export async function localNotificationPage(
   if (seenChanged) {
     await setAccountScoped(accountId, STORAGE_KEY, {readIds: stored.readIds, seenAt: built.seenAt});
   }
-  const items = !category || category === 'all' ? built.items : built.items.filter(item => item.category === category);
+  const announcements = await readInstituteAnnouncements();
+  const merged = [...announcements, ...built.items.filter(item => !announcements.some(announcement => announcement.id === item.id))];
+  merged.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  const items = !category || category === 'all' ? merged : merged.filter(item => item.category === category);
   return {items, nextCursor: null, total: items.length};
 }
 

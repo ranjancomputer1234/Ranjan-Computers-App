@@ -4,6 +4,7 @@ import {useQueryClient} from '@tanstack/react-query';
 import {useRepositories} from '../../core/di';
 import {useSessionStore} from '../../core/session';
 import {usePreferencesStore} from '../settings/preferencesStore';
+import {syncInstituteAlerts} from './instituteAlerts';
 import {
   getInitialNotification,
   openedNotificationTarget,
@@ -21,6 +22,7 @@ export function NotificationRuntime() {
   const tests = usePreferencesStore(state => state.notifTests);
   const news = usePreferencesStore(state => state.notifNews);
   const offers = usePreferencesStore(state => state.notifOffers);
+  const announcements = usePreferencesStore(state => state.notifAnnouncements);
   const language = usePreferencesStore(state => state.language);
   const pendingReadId = React.useRef<string | null>(null);
 
@@ -54,9 +56,7 @@ export function NotificationRuntime() {
       if (!disposed && payload) openNotification(payload);
     });
     const unsubscribe = subscribeToNotificationEvents(openNotification, token => {
-      if (useSessionStore.getState().status === 'authenticated') {
-        void syncPushDevice(repos.account, token).catch(() => {});
-      }
+      void syncPushDevice(repos.account, token).catch(() => {});
     });
     return () => {
       disposed = true;
@@ -65,9 +65,18 @@ export function NotificationRuntime() {
   }, [openNotification, repos.account]);
 
   React.useEffect(() => {
-    if (!hydrated || status !== 'authenticated') return;
+    if (!hydrated) return;
     void syncPushDevice(repos.account).catch(() => {});
   }, [classes, hydrated, language, news, offers, repos.account, status, tests]);
+
+  React.useEffect(() => {
+    if (!hydrated || !announcements) return;
+    void syncInstituteAlerts(repos).catch(() => {});
+    const subscription = AppState.addEventListener('change', next => {
+      if (next === 'active') void syncInstituteAlerts(repos).catch(() => {});
+    });
+    return () => subscription.remove();
+  }, [announcements, classes, hydrated, news, repos]);
 
   React.useEffect(() => {
     const subscription = AppState.addEventListener('change', next => {

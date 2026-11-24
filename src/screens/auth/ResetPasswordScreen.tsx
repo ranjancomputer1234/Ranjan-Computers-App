@@ -1,5 +1,6 @@
 import React from 'react';
-import {Animated, Modal, Pressable, ScrollView, TextInput, View} from 'react-native';
+import {Animated, Modal, Pressable, TextInput, View} from 'react-native';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useRepositories} from '../../core/di';
@@ -194,9 +195,8 @@ export function ResetPasswordScreen() {
 
   return (
     <Screen padded={false}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.loginScroll}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.loginPage}>
         <View style={styles.loginStage}>
@@ -321,7 +321,7 @@ export function ResetPasswordScreen() {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
       {updated ? <PasswordUpdatedNotice onContinue={goToLogin} /> : null}
     </Screen>
   );

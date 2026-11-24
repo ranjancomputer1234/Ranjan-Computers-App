@@ -1,20 +1,25 @@
 import React from 'react';
-import {Pressable, ScrollView, TextInput, View, type TextInputProps} from 'react-native';
+import {Pressable, TextInput, View, type TextInputProps} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RediLogo} from '../../assets/illustrations';
 import {Icon, type IconName} from '../../assets/icons';
 import {AppText} from '../../components/ui';
 import {Gradient} from '../../components/ui/Gradient';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {Screen} from '../../components/layout/Screen';
 import {useRepositories} from '../../core/di';
 import {useAsyncAction} from '../../core/useAsyncAction';
 import type {RootStackParamList} from '../../navigation/types';
 import {colors, gradients} from '../../theme';
+import {useGoogleAccount} from '../../features/auth/hooks/useGoogleAccount';
+import {blankAddress, compactAddress, type AddressForm} from '../../features/location/address';
+import {AddressField} from './AddressField';
+import {GoogleAuthButton} from './GoogleAuthButton';
 import {styles} from './styles';
 import {useUiTranslation} from '../../features/settings/uiTranslations';
 
-type FieldName = 'firstName' | 'lastName' | 'email' | 'phone' | 'city' | 'password' | 'confirmPassword';
+type FieldName = 'firstName' | 'lastName' | 'email' | 'phone' | 'address' | 'password' | 'confirmPassword';
 type FieldErrors = Partial<Record<FieldName, string>>;
 
 type SignupFieldProps = TextInputProps & {
@@ -63,13 +68,15 @@ function SignupField({label, icon, error, secure, ...inputProps}: SignupFieldPro
 }
 
 export function RegisterScreen() {
+  const tx = useUiTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const repos = useRepositories();
+  const google = useGoogleAccount();
   const [firstName, setFirstName] = React.useState('');
   const [lastName, setLastName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [phone, setPhone] = React.useState('');
-  const [city, setCity] = React.useState('');
+  const [address, setAddress] = React.useState<AddressForm>(blankAddress);
   const [password, setPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [errors, setErrors] = React.useState<FieldErrors>({});
@@ -82,8 +89,7 @@ export function RegisterScreen() {
       nextErrors.email = 'Enter a valid email address.';
     }
     if (phone && !/^[6-9]\d{9}$/.test(phone)) nextErrors.phone = 'Enter a valid 10-digit mobile number.';
-    if (!city.trim()) nextErrors.city = 'Enter your city.';
-    else if (city.trim().length > 100) nextErrors.city = 'City must be 100 characters or fewer.';
+    if (address.pincode && !/^\d{6}$/.test(address.pincode)) nextErrors.address = 'Enter a 6-digit PIN code.';
     if (password.length < 6) nextErrors.password = 'Use at least 6 characters.';
     if (!confirmPassword) nextErrors.confirmPassword = 'Confirm your password.';
     else if (confirmPassword !== password) nextErrors.confirmPassword = 'Passwords do not match.';
@@ -99,23 +105,22 @@ export function RegisterScreen() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    const address = email.trim().toLowerCase();
+    const emailAddress = email.trim().toLowerCase();
     const result = await repos.auth.register({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: address,
+      email: emailAddress,
       phone: phone || undefined,
-      city: city.trim(),
+      ...compactAddress(address),
       password,
     });
-    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'register', sentTo: address});
+    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'register', sentTo: emailAddress});
   });
 
   return (
     <Screen padded={false}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.loginScroll}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.loginPage}>
         <View style={styles.loginStage}>
@@ -141,6 +146,18 @@ export function RegisterScreen() {
           <View style={styles.loginHeading}>
             <AppText weight="800" size={22} color={colors.navy} center style={styles.welcome}>Create your account</AppText>
             <AppText weight="500" size={14} color={colors.text2} center>Join RACI and begin your learning journey.</AppText>
+          </View>
+
+          <GoogleAuthButton
+            label={tx('Sign up with Google')}
+            disabled={register.busy || google.busy}
+            onPress={() => void google.signInWithGoogleAccount(compactAddress(address))}
+          />
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <AppText weight="700" size={11} color={colors.text3} style={styles.dividerText}>OR</AppText>
+            <View style={styles.dividerLine} />
           </View>
 
           <SignupField
@@ -211,19 +228,13 @@ export function RegisterScreen() {
             error={errors.phone}
           />
 
-          <SignupField
-            label="City"
-            icon="pin"
-            value={city}
-            onChangeText={value => {
-              setCity(value);
-              clearError('city');
+          <AddressField
+            value={address}
+            error={errors.address}
+            onChange={next => {
+              setAddress(next);
+              clearError('address');
             }}
-            placeholder="Your city"
-            autoCapitalize="words"
-            autoCorrect={false}
-            returnKeyType="next"
-            error={errors.city}
           />
 
           <SignupField
@@ -272,10 +283,10 @@ export function RegisterScreen() {
 
           <Pressable
             onPress={() => register.run()}
-            disabled={register.busy}
+            disabled={register.busy || google.busy}
             accessibilityRole="button"
-            accessibilityState={{disabled: register.busy}}
-            style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, register.busy && styles.disabled]}>
+            accessibilityState={{disabled: register.busy || google.busy}}
+            style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, (register.busy || google.busy) && styles.disabled]}>
             <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
               <AppText weight="700" size={16} color="#fff" center>
                 {register.busy ? 'Sending code…' : 'Send verification code'}
@@ -299,7 +310,7 @@ export function RegisterScreen() {
           </View>
         </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

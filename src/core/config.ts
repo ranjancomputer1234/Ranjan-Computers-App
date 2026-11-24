@@ -10,6 +10,7 @@ export type AppConfig = {
   versionName: string;
   googleWebClientId?: string;
   googleIosClientId?: string;
+  googleMapsApiKey?: string;
   speechRecognitionEnabled: boolean;
   pushProvider: 'none' | 'fcm' | 'apns';
   videoProvider: 'native' | 'external';
@@ -81,15 +82,16 @@ export const appConfig: AppConfig = {
   seedAccounts: __DEV__ ? seedAccounts(native) : [],
   privacyPolicyUrl: native.privacyPolicyUrl || undefined,
   accountDeletionUrl: native.accountDeletionUrl || undefined,
-  versionName: native.versionName || '1.0.6',
+  versionName: native.versionName || '1.0.7',
   googleWebClientId: native.googleWebClientId || undefined,
+  googleMapsApiKey: native.googleMapsApiKey || undefined,
   speechRecognitionEnabled: false,
   pushProvider: Platform.OS === 'android' && native.firebaseEnabled ? 'fcm' : 'none',
   videoProvider: 'native',
   liveProvider: 'native',
   paymentRoute: Platform.OS === 'android' ? 'play_billing' : 'app_store',
   capabilities: {
-    googleLogin: false,
+    googleLogin: Boolean(native.googleWebClientId),
     // Live chat is intentionally disabled in every data mode. Keep this as a
     // capability flag so the UI and network layer cannot activate it from a
     // backend join response alone.

@@ -133,6 +133,10 @@ class RediFirebaseMessagingService : FirebaseMessagingService() {
     RediNotificationsModule.handleNewInstallationId(fid)
   }
 
+  override fun onNewToken(token: String) {
+    RediNotificationsModule.handleNewFcmToken(token)
+  }
+
   override fun onMessageReceived(message: RemoteMessage) {
     val data = message.data
     val title = data["title"] ?: message.notification?.title ?: return
@@ -156,6 +160,17 @@ class RediNotificationsModule(private val context: ReactApplicationContext) : Re
 
   @ReactMethod
   fun isSupported(promise: Promise) = promise.resolve(BuildConfig.REDI_FIREBASE_ENABLED)
+
+  @ReactMethod
+  fun getToken(promise: Promise) {
+    if (!BuildConfig.REDI_FIREBASE_ENABLED) {
+      promise.resolve(null)
+      return
+    }
+    FirebaseMessaging.getInstance().token
+      .addOnSuccessListener { promise.resolve(it) }
+      .addOnFailureListener { promise.reject("push_token_failed", "Could not get a notification token.", it) }
+  }
 
   @ReactMethod
   fun getInstallationId(promise: Promise) {
@@ -254,10 +269,15 @@ class RediNotificationsModule(private val context: ReactApplicationContext) : Re
     }
 
     fun handleNewInstallationId(fid: String) {
+      if (BuildConfig.DEBUG) Log.d("FCM", fid)
+    }
+
+    fun handleNewFcmToken(token: String) {
+      if (token.length < 8) return
       val module = activeModule?.get() ?: return
       if (!module.context.hasActiveReactInstance()) return
       module.context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit(TOKEN_EVENT, fid)
+        .emit(TOKEN_EVENT, token)
     }
 
     private fun payloadFromIntent(intent: Intent): WritableMap? {

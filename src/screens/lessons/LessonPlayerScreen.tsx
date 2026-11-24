@@ -17,6 +17,7 @@ import {useResource} from '../../core/useResource';
 import {usePreferencesStore} from '../../features/settings/preferencesStore';
 import {videoBitRate, videoInitialBitRate} from '../../features/settings/preferences';
 import {playableStream} from '../../core/playback';
+import {isPlaceholderMedia} from '../../features/catalog/courseCopy';
 
 export function LessonPlayerScreen() {
   const navigation = useNavigation<HomeNav>();
@@ -43,6 +44,7 @@ export function LessonPlayerScreen() {
     },
   });
   const stream = playableStream(playback.data?.playback);
+  const sampleMedia = isPlaceholderMedia(playback.data?.playback?.url);
   const complete = useMutation({mutationFn: () => repos.learning.completeLesson(lessonId), onSuccess: () => queryClient.invalidateQueries()});
   const resource = useResource();
   const saveProgress = useCallback((currentTime: number, duration: number) => {
@@ -98,6 +100,7 @@ export function LessonPlayerScreen() {
                 </Pressable>
               ))}
             </View>
+            {sampleMedia ? <AppText size={12} color={colors.text2}>This lesson is written out below. A course video will replace the practice clip when the institute publishes one.</AppText> : null}
             {tab === 'Notes' ? <ClayCard variant="white"><AppText size={13} style={{lineHeight: 21}}>{lesson.data.notes ?? 'No notes have been added to this lesson yet.'}</AppText></ClayCard> : null}
             {tab === 'Docs' ? lesson.data.resources.filter(res => res.kind !== 'video').map(res => (
               <ClayCard key={res.id} variant="sky"><AppText weight="800">{res.title}</AppText><AppText size={11} color={colors.text2}>{res.mimeType}</AppText>{res.canDownload && isAuthenticated() ? <>
@@ -106,7 +109,7 @@ export function LessonPlayerScreen() {
               </> : null}</ClayCard>
             )) : null}
             {lesson.data.hasMedia && !videoResource ? <AppText size={12} color={colors.text2}>This lesson has media, but the catalogue has not attached a resource id yet.</AppText> : null}
-            {playback.data?.playback?.url && !stream ? <AppText size={12} color={colors.text2}>{playback.data.playback.status === 'not_ready_or_signing_not_configured' ? 'This video is not ready to play yet.' : 'This video cannot be played inside the app yet.'}</AppText> : null}
+            {playback.data?.playback?.url && !stream && !sampleMedia ? <AppText size={12} color={colors.text2}>{playback.data.playback.status === 'not_ready_or_signing_not_configured' ? 'This video is not ready to play yet.' : 'This video cannot be played inside the app yet.'}</AppText> : null}
             {playback.isError ? <AppText color={colors.error}>Video access could not be authorized.</AppText> : null}
             {tab === 'Docs' && !lesson.data.resources.length ? <AppText>No resources have been added yet.</AppText> : null}
             {resource.error ? <AppText color={colors.error}>{resource.error}</AppText> : null}

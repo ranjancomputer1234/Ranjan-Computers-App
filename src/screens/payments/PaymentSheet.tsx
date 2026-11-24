@@ -1,10 +1,12 @@
 import React, {useEffect, useState} from 'react';
-import {KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, View} from 'react-native';
+import {KeyboardAvoidingView, Linking, Modal, Platform, Pressable, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors} from '../../theme';
 import {AppText, FormField} from '../../components/ui';
 import {Gradient} from '../../components/ui/Gradient';
 import {Icon} from '../../assets/icons';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
+import {useKeyboardBottomInset} from '../../components/layout/useKeyboardBottomInset';
 import {
   BANKS,
   UPI_APPS,
@@ -35,6 +37,7 @@ type Props = {
 
 export function PaymentSheet({visible, method, amountLabel, busy, savedCards, onClose, onConfirm}: Props) {
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardBottomInset();
   const [upiApp, setUpiApp] = useState<string>();
   const [upiId, setUpiId] = useState('');
   const [installed, setInstalled] = useState<Set<string>>(new Set());
@@ -165,9 +168,19 @@ export function PaymentSheet({visible, method, amountLabel, busy, savedCards, on
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={busy ? undefined : onClose} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetRoot}>
+      <KeyboardAvoidingView
+        enabled={Platform.OS === 'ios'}
+        behavior="padding"
+        style={styles.sheetRoot}>
         <Pressable style={{flex: 1}} disabled={busy} onPress={onClose} accessibilityLabel="Close payment options" />
-        <View style={[styles.sheet, {paddingBottom: Math.max(insets.bottom, 16)}]}>
+        <View
+          style={[
+            styles.sheet,
+            {
+              paddingBottom:
+                Math.max(insets.bottom, 16) + (Platform.OS === 'android' ? keyboard.height : 0),
+            },
+          ]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHead}>
             <View style={styles.sheetCopy}>
@@ -184,7 +197,10 @@ export function PaymentSheet({visible, method, amountLabel, busy, savedCards, on
               </AppText>
             </Pressable>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetList}>
+          <KeyboardAwareScrollView
+            padForKeyboard={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.sheetList}>
             {method === 'upi' ? (
               <>
                 {UPI_APPS.map(app => {
@@ -364,7 +380,7 @@ export function PaymentSheet({visible, method, amountLabel, busy, savedCards, on
                 {error}
               </AppText>
             ) : null}
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={busy ? 'Processing payment' : `Pay ${amountLabel} securely`}

@@ -24,6 +24,10 @@ it('sends the learner token only to routes marked learner-authenticated', async 
   expect(home.data.authorization).toBeUndefined();
   expect(login.data.authorization).toBeUndefined();
   expect(logout.data.authorization).toBe('Bearer old');
+  const guestPush = await client.put('/push-devices/guest', {token: 'fcm-token-value', platform: 'android'});
+  const learnerPush = await client.put('/me/push-devices/current', {token: 'fcm-token-value', platform: 'android'});
+  expect(guestPush.data.authorization).toBeUndefined();
+  expect(learnerPush.data.authorization).toBe('Bearer old');
 });
 
 it('discards an old response when the account changes', async () => {

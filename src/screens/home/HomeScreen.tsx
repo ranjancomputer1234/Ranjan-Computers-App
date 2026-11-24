@@ -33,6 +33,8 @@ import { ClayCard } from '../../components/ui/Clay';
 import { openPublishedTarget } from '../../features/catalog/openPublishedTarget';
 import { useHomeDashboard } from '../../features/home/hooks/useHomeDashboard';
 import { useEnrolledCourseIds } from '../../features/catalog/useEnrolledCourseIds';
+import {promptNotificationAccessOnce, requestReminderPermission, openReminderSettings} from '../../features/settings/reminders';
+import {usePreferencesStore} from '../../features/settings/preferencesStore';
 
 function liveTimeLabel(item: LiveClass) {
   if (item.status === 'live') return 'Live now';
@@ -275,6 +277,22 @@ export function HomeScreen() {
   const featuredCourses = homeQuery.data?.featuredCourses ?? [];
   const { ids: enrolledIds } = useEnrolledCourseIds();
   const banners = homeQuery.data?.banners ?? [];
+  const announcementsOn = usePreferencesStore(state => state.notifAnnouncements);
+  const setAnnouncements = usePreferencesStore(state => state.setNotifAnnouncements);
+  const [announcementNote, setAnnouncementNote] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      promptNotificationAccessOnce().then(permission => {
+        if (!cancelled && permission === 'authorized') setAnnouncements(true);
+      }).catch(() => undefined);
+    }, 900);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [setAnnouncements]);
 
   React.useEffect(() => {
     if (activeLive >= liveClasses.length) setActiveLive(0);
@@ -678,6 +696,37 @@ export function HomeScreen() {
                 navigation.navigate('ComputerCourses', { pricing: 'free' })
               }
             />
+          </ClayCard>
+        ) : null}
+        {!announcementsOn ? (
+          <ClayCard variant="lavender">
+            <AppText weight="800" size={14} color={colors.navy}>Institute announcements</AppText>
+            <AppText size={12} color={colors.text2}>
+              Admissions, new courses, live classes and schedule changes. You can turn these on without creating an account.
+            </AppText>
+            <ClayButton
+              label="Allow notifications"
+              compact
+              onPress={() => {
+                void requestReminderPermission().then(permission => {
+                  if (permission === 'denied') {
+                    setAnnouncementNote('Notifications are off in device settings.');
+                    Alert.alert(
+                      'Allow notifications',
+                      'Turn on notifications so RACI can send institute announcements and class reminders.',
+                      [
+                        {text: 'Not now', style: 'cancel'},
+                        {text: 'Open settings', onPress: () => void openReminderSettings()},
+                      ],
+                    );
+                    return;
+                  }
+                  setAnnouncements(true);
+                  setAnnouncementNote('Announcements are on for this device.');
+                });
+              }}
+            />
+            {announcementNote ? <AppText size={12} color={colors.text2}>{announcementNote}</AppText> : null}
           </ClayCard>
         ) : null}
       </ScrollView>

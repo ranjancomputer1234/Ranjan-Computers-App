@@ -46,7 +46,8 @@ export const styles = createThemedStyles({
     backgroundColor: colors.pastel.red,
     boxShadow: '0 16px 26px -14px rgba(198,40,40,0.35), inset 5px 5px 12px rgba(255,255,255,0.8), inset -4px -4px 10px rgba(198,40,40,0.12)',
   },
-  classTime: {width: 50, flexShrink: 0, alignItems: 'center', gap: 3},
+  upcomingBlock: {gap: 10},
+  classTime: {width: 72, flexShrink: 0, alignItems: 'center', gap: 3},
   classBody: {flex: 1, minWidth: 0, gap: 5},
   classTitleRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
   livePill: {

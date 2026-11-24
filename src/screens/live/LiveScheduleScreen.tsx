@@ -2,6 +2,8 @@ import React from 'react';
 import {Alert, Pressable, ScrollView, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
+import {canRemindLiveClass} from '../../features/live/visibleClasses';
+import {isAuthenticated, useSessionStore} from '../../core/session';
 import {colors, gradients} from '../../theme';
 import {AppText, ClayButton, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
 import {IconButton} from '../../components/ui/Clay';
@@ -76,6 +78,13 @@ export function LiveScheduleScreen() {
   }, [schedule.data]);
   const activeKey = selected ?? dayKey(featuredDate);
   const classes = schedule.data?.filter(item => dayKey(item.startsAt) === activeKey) ?? [];
+  const upcoming = React.useMemo(() => {
+    const now = Date.now() - 60 * 60 * 1000;
+    return (schedule.data ?? [])
+      .filter(item => item.status !== 'cancelled' && item.status !== 'ended' && new Date(item.startsAt).getTime() >= now)
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+      .slice(0, 8);
+  }, [schedule.data]);
   const liveCount = classes.filter(item => ['live', 'starting', 'reconnecting'].includes(item.status)).length;
   const isToday = dayKey(selectedDate) === dayKey(new Date());
   const headerSubtitle = `${selectedDate.toLocaleDateString('en-IN', {month: 'long', year: 'numeric'})} · Week ${weekOfMonth(selectedDate)}`;
@@ -89,6 +98,10 @@ export function LiveScheduleScreen() {
           {text: 'Open settings', onPress: () => void openReminderSettings()},
         ],
       );
+      return;
+    }
+    if (error.message === 'sign_in_required') {
+      useSessionStore.getState().showLogin();
       return;
     }
     if (error.message === 'class_not_upcoming') {
@@ -121,6 +134,38 @@ export function LiveScheduleScreen() {
         }}
       />
       <ScrollView {...pullRefresh.scrollProps} contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        {upcoming.length ? (
+          <View style={styles.upcomingBlock}>
+            <AppText weight="800" size={16} color={colors.navy}>Upcoming classes</AppText>
+            <AppText size={12} color={colors.text2}>Dates, timings and a reminder for each session.</AppText>
+            {upcoming.map(item => (
+              <ClassRow
+                key={`upcoming-${item.id}`}
+                item={item}
+                showDate
+                reminderBusy={reminder.isPending && reminder.variables?.id === item.id}
+                onOpen={showLearnerUnavailable}
+                onSelectDay={() => {
+                  const key = dayKey(item.startsAt);
+                  setSelected(key);
+                  setAnchorKey(key);
+                }}
+                onReminder={() => {
+                  if (!isAuthenticated()) {
+                    useSessionStore.getState().setPendingDestination({kind: 'liveClass', id: item.id});
+                    useSessionStore.getState().showLogin();
+                    return;
+                  }
+                  reminder.mutate(
+                    {id: item.id, enabled: !item.reminderSet},
+                    {onError: showReminderError},
+                  );
+                }}
+              />
+            ))}
+          </View>
+        ) : null}
+
         <View style={styles.dayChips}>
           {days.map(date => {
             const key = dayKey(date);
@@ -169,7 +214,10 @@ export function LiveScheduleScreen() {
         {schedule.isLoading ? <LoadingBlock /> : null}
         {schedule.isError ? <ErrorState message="Schedule unavailable." onRetry={() => schedule.refetch()} /> : null}
         {!schedule.isLoading && !schedule.isError && !classes.length ? (
-          <EmptyState title="No classes scheduled" body="Choose another day to see upcoming and recorded sessions." />
+          <EmptyState
+            title="No classes on this day"
+            body={upcoming.length ? 'Choose another day, or use the upcoming list above.' : 'New sessions will show here with the date, time and a reminder.'}
+          />
         ) : null}
         {classes.map(item => (
           <ClassRow
@@ -177,10 +225,17 @@ export function LiveScheduleScreen() {
             item={item}
             reminderBusy={reminder.isPending && reminder.variables?.id === item.id}
             onOpen={showLearnerUnavailable}
-            onReminder={() => reminder.mutate(
-              {id: item.id, enabled: !item.reminderSet},
-              {onError: showReminderError},
-            )}
+            onReminder={() => {
+              if (!isAuthenticated()) {
+                useSessionStore.getState().setPendingDestination({kind: 'liveClass', id: item.id});
+                useSessionStore.getState().showLogin();
+                return;
+              }
+              reminder.mutate(
+                {id: item.id, enabled: !item.reminderSet},
+                {onError: showReminderError},
+              );
+            }}
           />
         ))}
 
@@ -208,7 +263,13 @@ export function LiveScheduleScreen() {
               tone="orange"
               compact
               disabled={enableAll.isPending || allRemindersEnabled || upcomingCount === 0}
-              onPress={() => enableAll.mutate(undefined, {onError: showReminderError})}
+              onPress={() => {
+                if (!isAuthenticated()) {
+                  useSessionStore.getState().showLogin();
+                  return;
+                }
+                enableAll.mutate(undefined, {onError: showReminderError});
+              }}
             />
           </View>
           <View style={styles.reminderArt}><Icon name="bell" size={76} color="rgba(255,255,255,0.85)" /></View>
@@ -235,34 +296,48 @@ function ClassRow({
   onOpen,
   onReminder,
   reminderBusy,
+  showDate = false,
+  onSelectDay,
 }: {
   item: LiveClass;
   onOpen: () => void;
   onReminder: () => void;
   reminderBusy: boolean;
+  showDate?: boolean;
+  onSelectDay?: () => void;
 }) {
   const {time, period} = timeParts(item.startsAt);
+  const dateLabel = new Date(item.startsAt).toLocaleDateString('en-IN', {weekday: 'short', day: 'numeric', month: 'short'});
   const isLive = ['live', 'starting', 'reconnecting'].includes(item.status);
   const ended = item.status === 'ended';
   const duration = item.durationLabel?.replace(' min', 'm') ?? `${Math.max(1, Math.round((new Date(item.endsAt).getTime() - new Date(item.startsAt).getTime()) / 60000))}m`;
   return (
     <View style={[styles.classRow, isLive && styles.classRowLive, ended && {opacity: 0.85}]}>
       <View style={styles.classTime}>
+        {showDate ? <AppText weight="800" size={8} color={colors.primary}>{dateLabel}</AppText> : null}
         <AppText weight="800" size={13} color={colors.navy}>{time}</AppText>
         <AppText weight="600" size={8.5} color={colors.text2}>{period} · {ended ? 'ended' : duration}</AppText>
       </View>
-      <View style={styles.classBody}>
+      <Pressable
+        accessibilityRole={onSelectDay ? 'button' : undefined}
+        accessibilityLabel={onSelectDay ? `Show ${item.title} on the calendar` : undefined}
+        disabled={!onSelectDay}
+        onPress={onSelectDay}
+        style={styles.classBody}>
         <View style={styles.classTitleRow}>
           {isLive ? <View style={styles.livePill}><View style={styles.liveDot} /><AppText weight="800" size={8} color="#fff" style={{letterSpacing: 1}}>LIVE</AppText></View> : null}
           <AppText weight="800" size={11.5} color={colors.navy} numberOfLines={2} style={{flex: 1}}>{item.title}</AppText>
         </View>
+        {item.scheduleLabel ? (
+          <AppText weight="600" size={9} color={colors.text2} numberOfLines={2}>{item.scheduleLabel}</AppText>
+        ) : null}
         <AppText weight="500" size={9.5} color={colors.text2} numberOfLines={2}>
           {ended && item.recordingAvailable ? 'Recording ready' : item.instructorName}{isLive && item.viewerCount ? ` · ${item.viewerCount.toLocaleString('en-IN')} watching` : item.batch ? ` · ${item.batch}` : ''}
         </AppText>
-      </View>
+      </Pressable>
       {isLive ? <ClayButton label="Join Now" tone="orange" compact onPress={onOpen} /> : null}
       {ended && item.recordingAvailable ? <ClayButton label="Watch" tone="ghost" compact onPress={onOpen} /> : null}
-      {item.status === 'scheduled' && Date.parse(item.startsAt) > Date.now() ? (
+      {canRemindLiveClass(item) ? (
         <IconButton
           icon="bell"
           color={item.reminderSet ? colors.primary : colors.navy}

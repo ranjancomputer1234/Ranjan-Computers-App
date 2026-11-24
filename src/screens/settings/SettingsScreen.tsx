@@ -17,6 +17,7 @@ import {useAsyncAction} from '../../core/useAsyncAction';
 import {brand, clay, colors} from '../../theme';
 import {useTheme} from '../../theme/ThemeProvider';
 import {AppText, ClayToggle, SearchInput} from '../../components/ui';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Icon, type IconName} from '../../assets/icons';
 import {IconButton} from '../../components/ui/Clay';
@@ -164,7 +165,7 @@ export function SettingsScreen() {
           />
         }
       />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={styles.page}>
         {searching ? (
           <View style={styles.searchWrap}>
             <SearchInput
@@ -393,7 +394,7 @@ export function SettingsScreen() {
           ) : null}
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <OptionSheet
         visible={sheet === 'quality'}

@@ -27,6 +27,7 @@ export {
   liveClassReminderTimestamp,
   openReminderSettings,
   permissionAllowsReminders,
+  promptNotificationAccessOnce,
   requestReminderPermission,
   scheduleLiveClassReminder,
   syncLearningReminder,

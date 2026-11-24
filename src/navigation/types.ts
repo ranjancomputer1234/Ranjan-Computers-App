@@ -115,6 +115,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   VerifyContact: {challengeId: string; mode: 'register' | 'reset' | 'profile'; sentTo?: string};
   ResetPassword: {challengeId: string};
+  CompleteAddress: undefined;
   Main: NavigatorScreenParams<TabParamList>;
   DailyQuiz: {testId: string; attemptId?: string};
   TestRunner: {attemptId: string};

@@ -13,8 +13,8 @@ import {queryClient, queryKeys} from '../../../core/query';
 import {getAccountScoped, setAccountScoped} from '../../../core/storage';
 import {inr} from '../utils/inr';
 import {defaultMethod, formatQuoteCountdown, methodsFor} from '../methods';
-import {couponFailureMessage, quoteWithCoupon, type CheckoutQuote} from '../couponQuote';
-import {accessBlocked, checkoutAlert, PAYMENT_FAILED_MESSAGE, PAYMENT_FAILED_TITLE} from '../paymentOutcome';
+import {couponFailureMessage, isFreeClaim, quoteWithCoupon, type CheckoutQuote} from '../couponQuote';
+import {accessBlocked, amountMismatch, checkoutAlert, PAYMENT_FAILED_MESSAGE, PAYMENT_FAILED_TITLE, verificationFailed} from '../paymentOutcome';
 import type {SavedCard} from '../paymentInstruments';
 import {readSavedCards, storeSavedCard} from '../savedCards';
 import type {LearnerProfile, Order, PaymentMethodId} from '../../../core/types';
@@ -64,14 +64,7 @@ export function useCheckout() {
 
   const quote = useQuery({
     queryKey: queryKeys.quote(owner, productId, ''),
-    queryFn: async () => {
-      try {
-        return await repos.commerce.quote(productId);
-      } catch (error) {
-        if (!commerceMissing(error)) throw error;
-        return enrollmentQuote(checkout);
-      }
-    },
+    queryFn: () => repos.commerce.quote(productId),
     enabled: isAuthenticated(),
     staleTime: 0,
     placeholderData: preview,
@@ -83,6 +76,8 @@ export function useCheckout() {
     staleTime: 0,
   });
 
+  const quoteReady = Boolean(couponQuote) || (quote.isSuccess && !quote.isPlaceholderData);
+  const priced = couponQuote ?? (quote.isSuccess ? quote.data : undefined);
   const data = couponQuote ?? quote.data;
   const availableMethods = methodsFor(data?.methods);
   const inAppCheckout = availableMethods.length > 0;
@@ -155,7 +150,9 @@ export function useCheckout() {
     applyCoupon('');
   };
 
-  const payableLabel = storeProduct.data?.formattedPrice ?? (data && data.totalMinor > 0 ? inr(data.totalMinor, data.currency) : '');
+  const freeClaim = isFreeClaim(priced);
+  const payableLabel = storeProduct.data?.formattedPrice
+    ?? (priced && priced.totalMinor > 0 ? inr(priced.totalMinor, priced.currency) : freeClaim ? inr(0, priced?.currency) : '');
   const unavailable = !inAppCheckout && !storeProduct.data;
 
   const finishPaidOrder = async (order: Order): Promise<Order> => {
@@ -177,17 +174,18 @@ export function useCheckout() {
     mutationFn: async (input): Promise<PayOutcome> => {
       const methodDetail = input?.methodDetail?.trim() || undefined;
       if (running.current) throw new Error('A purchase is already in progress.');
-      if (!isAuthenticated() || !data) throw new Error('This purchase is unavailable.');
-      if (!Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now()) {
+      if (!isAuthenticated() || !priced) throw new Error('This purchase is unavailable.');
+      if (!Number.isFinite(Date.parse(priced.expiresAt)) || Date.parse(priced.expiresAt) <= Date.now()) {
         void quote.refetch();
         throw new Error('The quote expired. Please review the updated price.');
       }
       const playBilling = Boolean(storeProduct.data) && !inAppCheckout;
+      const claimFree = isFreeClaim(priced);
       if (playBilling && !appConfig.capabilities.payments) throw new Error('This purchase is unavailable.');
       if (playBilling && !storeProduct.data) throw new Error('This product is not available on Google Play yet.');
       if (!playBilling && !inAppCheckout) throw new Error('Choose a payment method to continue.');
       if (inAppCheckout && !selectedMethod) throw new Error('Choose a payment method to continue.');
-      if (!playBilling && data.totalMinor <= 0) throw new Error('This purchase is unavailable.');
+      if (!playBilling && priced.totalMinor <= 0 && !claimFree) throw new Error('This purchase is unavailable.');
       running.current = true;
       const generation = currentSessionGeneration();
       const courseId = checkout.contentKind === 'course' && checkout.contentId ? checkout.contentId : productId;
@@ -210,26 +208,46 @@ export function useCheckout() {
         let order: Order;
         let razorpayKey: string | undefined;
         try {
-          if (!playBilling) {
-            const config = await repos.commerce.paymentConfig();
-            if (!config.configured || !config.keyId) throw new Error('This purchase is not available yet.');
-            razorpayKey = config.keyId;
+          if (!playBilling && !claimFree) {
+            try {
+              const config = await repos.commerce.paymentConfig();
+              razorpayKey = config.keyId;
+            } catch {
+              // create-order still returns key_id when Razorpay is configured.
+            }
           }
           order = await repos.commerce.createOrder(productId, couponToSend, key, selectedMethod, {
-            amountMinor: data.totalMinor,
-            currency: data.currency,
+            amountMinor: priced.totalMinor,
+            currency: priced.currency,
             courseId,
           });
         } catch (error) {
           await clearUnplacedPurchase(owner);
+          if (amountMismatch(error)) {
+            void quote.refetch();
+            throw new Error(isAppError(error) && error.message.trim() ? error.message : 'The price changed. Review the updated total.');
+          }
           if (commerceMissing(error) || accessBlocked(error)) return {failed: true};
           throw error;
         }
         if (generation !== currentSessionGeneration()) throw new Error('Your account changed. Please reopen checkout.');
-        await writePurchase(owner, {productId, key, orderId: order.id});
-        if (!['idle', 'creatingOrder', 'awaitingProvider'].includes(order.status)) {
-          return finishPaidOrder(order);
+        const placed: Order = {
+          ...order,
+          productId,
+          title: priced.title,
+          quote: {...priced, totalMinor: order.quote.totalMinor, currency: order.quote.currency || priced.currency},
+          method: selectedMethod ?? order.method,
+          paidAt: order.paidAt ?? (order.status === 'succeeded' ? new Date().toISOString() : undefined),
+        };
+        repos.commerce.noteOrder(placed);
+        await writePurchase(owner, {productId, key, orderId: placed.id});
+        if (claimFree && placed.status !== 'succeeded') throw new Error('This purchase could not be completed.');
+        if (claimFree || placed.status === 'succeeded' || !['idle', 'creatingOrder', 'awaitingProvider'].includes(placed.status)) {
+          return finishPaidOrder(placed);
         }
+        order = placed;
+        const sheetKey = order.providerKeyId || razorpayKey;
+        if (!sheetKey) throw new Error('This purchase is not available yet.');
         const profile =
           queryClient.getQueryData<LearnerProfile>(queryKeys.profile(owner)) ??
           (await repos.auth.me().catch(() => undefined));
@@ -237,23 +255,21 @@ export function useCheckout() {
         try {
           launch = await paymentService.launch(
             order.id,
-            order.quote.totalMinor > 0 ? order.quote.totalMinor : data.totalMinor,
+            order.quote.totalMinor,
             storeProduct.data,
             owner,
-            razorpayKey
-              ? {
-                  keyId: razorpayKey,
+            {
+                  keyId: sheetKey,
                   orderId: order.id,
-                  currency: order.quote.currency || data.currency || 'INR',
-                  description: data.title,
+                  currency: order.quote.currency || priced.currency || 'INR',
+                  description: priced.title,
                   method: selectedMethod,
                   prefill: {
                     name: profile?.fullName,
                     email: profile?.email,
                     contact: razorpayContact(profile?.phone),
                   },
-                }
-              : undefined,
+                },
           );
         } catch (error) {
           await clearPurchase(owner, order.id);
@@ -266,7 +282,7 @@ export function useCheckout() {
           return {failed: true};
         }
         if (!launch.payload?.razorpay_payment_id || !launch.payload.razorpay_signature) {
-          const pending = {...order, title: data.title, quote: data, status: 'unknownNeedsRecheck' as const};
+          const pending = {...order, title: priced.title, quote: priced, status: 'unknownNeedsRecheck' as const};
           repos.commerce.noteOrder(pending);
           return pending;
         }
@@ -280,16 +296,27 @@ export function useCheckout() {
             courseId,
           });
         } catch (error) {
-          const pending = {...order, title: data.title, quote: data, status: 'unknownNeedsRecheck' as const};
+          if (verificationFailed(error)) {
+            const failed: Order = {...order, title: priced.title, quote: priced, status: 'failed'};
+            repos.commerce.noteOrder(failed);
+            await clearPurchase(owner, order.id);
+            return failed;
+          }
+          const pending = {...order, title: priced.title, quote: priced, status: 'unknownNeedsRecheck' as const};
           repos.commerce.noteOrder(pending);
           throw error;
+        }
+        if (verified.status !== 'succeeded' && verified.status !== 'paidAccessPending' && verified.status !== 'failed' && verified.status !== 'cancelled') {
+          const pending = {...order, ...verified, title: priced.title, quote: priced, status: 'unknownNeedsRecheck' as const};
+          repos.commerce.noteOrder(pending);
+          return pending;
         }
         const receipt: Order = {
           ...verified,
           id: verified.id || order.id,
           productId,
-          title: quote.data.title,
-          quote: quote.data,
+          title: priced.title,
+          quote: {...priced, totalMinor: verified.quote.totalMinor, currency: verified.quote.currency || priced.currency},
           method: selectedMethod ?? verified.method,
           methodDetail: methodDetail ?? verified.methodDetail,
           paidAt: verified.paidAt ?? (verified.status === 'succeeded' ? new Date().toISOString() : undefined),
@@ -354,6 +381,8 @@ export function useCheckout() {
     pay,
     data,
     payableLabel,
+    freeClaim,
+    quoteReady,
     unavailable,
     countdown,
     expired,

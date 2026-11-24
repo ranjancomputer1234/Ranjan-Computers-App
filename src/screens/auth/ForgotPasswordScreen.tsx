@@ -1,10 +1,11 @@
 import React from 'react';
-import {Pressable, ScrollView, TextInput, View} from 'react-native';
+import {Pressable, TextInput, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useRepositories} from '../../core/di';
 import {AppText} from '../../components/ui';
 import {Gradient} from '../../components/ui/Gradient';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {Screen} from '../../components/layout/Screen';
 import {useAsyncAction} from '../../core/useAsyncAction';
 import {RediLogo} from '../../assets/illustrations';
@@ -34,9 +35,8 @@ export function ForgotPasswordScreen() {
 
   return (
     <Screen padded={false}>
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.loginScroll}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.loginPage}>
         <View style={styles.loginStage}>
@@ -157,7 +157,7 @@ export function ForgotPasswordScreen() {
             </Pressable>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

@@ -1,8 +1,9 @@
 import React from 'react';
-import {Pressable, ScrollView, View} from 'react-native';
+import {Pressable, View} from 'react-native';
 import {clay, colors, gradients} from '../../theme';
 import {AppText, ErrorState, FormField, LoadingBlock} from '../../components/ui';
 import {ClayButton, ClayCard} from '../../components/ui/Clay';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {DetailHeader, Screen, StickyActionFooter} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
 import {Icon} from '../../assets/icons';
@@ -30,6 +31,8 @@ export function CheckoutScreen() {
     pay,
     data,
     payableLabel,
+    freeClaim,
+    quoteReady,
     unavailable,
     countdown,
     expired,
@@ -40,8 +43,8 @@ export function CheckoutScreen() {
   const couponSaved = data?.couponDiscountMinor ?? 0;
   const couponApplied = Boolean(appliedCoupon && data?.coupon === appliedCoupon);
   const busy = pay.isPending || quote.isFetching;
-  const canPay = Boolean(data) && !busy && !unavailable && !expired && (!inAppCheckout || Boolean(method));
-  const payLabel = pay.isPending ? 'Processing…' : payableLabel ? `Pay ${payableLabel} Securely` : 'Pay to Enroll';
+  const canPay = Boolean(data) && quoteReady && !busy && !unavailable && !expired && (!inAppCheckout || Boolean(method));
+  const payLabel = pay.isPending ? 'Processing…' : freeClaim ? 'Enroll for free' : payableLabel ? `Pay ${payableLabel} Securely` : 'Pay to Enroll';
 
   return (
     <Screen padded={false}>
@@ -51,7 +54,7 @@ export function CheckoutScreen() {
         onBack={() => navigation.goBack()}
         right={<SecureBadge />}
       />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.checkoutPage} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.checkoutPage} showsVerticalScrollIndicator={false}>
         {quote.isLoading && !data ? <LoadingBlock /> : null}
         {quote.isError && !data ? <ErrorState message="Could not load this order." onRetry={() => void quote.refetch()} /> : null}
 
@@ -223,7 +226,7 @@ export function CheckoutScreen() {
             }}
           />
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <StickyActionFooter>
         <Pressable
           accessibilityRole="button"
