@@ -2,10 +2,11 @@ import React from 'react';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {useRepositories} from '../../../core/di';
 import {queryKeys} from '../../../core/query';
+import {isAuthenticated} from '../../../core/session';
 import type {LiveClass} from '../../../core/types';
+import {canRemindLiveClass} from '../visibleClasses';
 import {
   cancelLiveClassReminder,
-  hasNativeReminderSupport,
   isUpcomingLiveClass,
   permissionAllowsReminders,
   requestReminderPermission,
@@ -17,13 +18,13 @@ export function useLiveSchedule() {
   const client = useQueryClient();
   const query = useQuery({
     queryKey: queryKeys.live({}),
-    queryFn: () => repos.live.schedule(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()),
+    queryFn: () => repos.live.schedule(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString()),
   });
-  const upcoming = React.useMemo(
-    () => query.data?.filter(row => isUpcomingLiveClass(row)) ?? [],
+  const remindable = React.useMemo(
+    () => query.data?.filter(row => canRemindLiveClass(row)) ?? [],
     [query.data],
   );
-  const allRemindersEnabled = upcoming.length > 0 && upcoming.every(row => row.reminderSet);
+  const allRemindersEnabled = remindable.length > 0 && remindable.every(row => row.reminderSet);
   React.useEffect(() => {
     query.data
       ?.filter(row => isUpcomingLiveClass(row) && row.reminderSet)
@@ -31,23 +32,26 @@ export function useLiveSchedule() {
   }, [query.data]);
   const reminder = useMutation({
     mutationFn: async ({id, enabled}: {id: string; enabled: boolean}) => {
+      if (!isAuthenticated()) throw new Error('sign_in_required');
       const item = query.data?.find(row => row.id === id);
       if (enabled) {
-        if (!item || !isUpcomingLiveClass(item)) throw new Error('class_not_upcoming');
+        if (!item || item.canSetReminder === false) throw new Error('class_not_upcoming');
+        if (item.canSetReminder !== true && !isUpcomingLiveClass(item)) throw new Error('class_not_upcoming');
         const permission = await requestReminderPermission();
         if (!permissionAllowsReminders(permission)) throw new Error('notification_permission_denied');
-        const scheduled = await scheduleLiveClassReminder(item);
-        if (hasNativeReminderSupport() && !scheduled) throw new Error('local_schedule_failed');
-        try {
-          await repos.live.setReminder(id, true);
-        } catch (error) {
-          await cancelLiveClassReminder(id);
-          throw error;
-        }
+      }
+      await repos.live.setReminder(id, enabled);
+      if (!enabled) {
+        await cancelLiveClassReminder(id);
         return;
       }
-      await repos.live.setReminder(id, false);
-      await cancelLiveClassReminder(id);
+      if (item) {
+        try {
+          await scheduleLiveClassReminder(item);
+        } catch {
+          // The server sends the 15-minute class push. The bell stays on.
+        }
+      }
     },
     onMutate: async ({id, enabled}) => {
       await client.cancelQueries({queryKey: ['live']});
@@ -64,22 +68,19 @@ export function useLiveSchedule() {
   });
   const enableAll = useMutation({
     mutationFn: async () => {
-      const rows = upcoming.filter(row => !row.reminderSet);
+      if (!isAuthenticated()) throw new Error('sign_in_required');
+      const rows = remindable.filter(row => !row.reminderSet);
       if (!rows.length) return {ids: [] as string[]};
       const permission = await requestReminderPermission();
       if (!permissionAllowsReminders(permission)) throw new Error('notification_permission_denied');
-      const locallyScheduled: string[] = [];
-      try {
-        for (const row of rows) {
-          const scheduled = await scheduleLiveClassReminder(row);
-          if (hasNativeReminderSupport() && !scheduled) throw new Error('local_schedule_failed');
-          if (scheduled) locallyScheduled.push(row.id);
+      await Promise.all(rows.map(row => repos.live.setReminder(row.id, true)));
+      await Promise.all(rows.map(async row => {
+        try {
+          await scheduleLiveClassReminder(row);
+        } catch {
+          // The server reminder is already on.
         }
-        await Promise.all(rows.map(row => repos.live.setReminder(row.id, true)));
-      } catch (error) {
-        await Promise.all(locallyScheduled.map(cancelLiveClassReminder));
-        throw error;
-      }
+      }));
       return {ids: rows.map(row => row.id)};
     },
     onSuccess: result => {
@@ -90,5 +91,5 @@ export function useLiveSchedule() {
     },
     onSettled: () => client.invalidateQueries({queryKey: ['live']}),
   });
-  return {query, reminder, enableAll, upcomingCount: upcoming.length, allRemindersEnabled};
+  return {query, reminder, enableAll, upcomingCount: remindable.length, allRemindersEnabled};
 }

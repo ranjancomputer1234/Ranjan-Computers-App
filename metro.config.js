@@ -1,4 +1,20 @@
+const path = require('path');
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
+
+/**
+ * @react-native/virtualized-lists@0.87.1 imports this private module by
+ * package subpath. react-native@0.87.1 does not list it in "exports", so
+ * Metro warns and falls back to the file. Resolve it directly.
+ */
+const REACT_NATIVE_FEATURE_FLAGS = path.join(
+  __dirname,
+  'node_modules',
+  'react-native',
+  'src',
+  'private',
+  'featureflags',
+  'ReactNativeFeatureFlags.js',
+);
 
 /**
  * Metro configuration
@@ -32,6 +48,22 @@ const config = {
         }
         return middleware(req, res, next);
       };
+    },
+  },
+  resolver: {
+    resolveRequest: (context, moduleName, platform) => {
+      if (
+        moduleName ===
+          'react-native/src/private/featureflags/ReactNativeFeatureFlags' ||
+        moduleName ===
+          'react-native/src/private/featureflags/ReactNativeFeatureFlags.js'
+      ) {
+        return {
+          type: 'sourceFile',
+          filePath: REACT_NATIVE_FEATURE_FLAGS,
+        };
+      }
+      return context.resolveRequest(context, moduleName, platform);
     },
   },
 };

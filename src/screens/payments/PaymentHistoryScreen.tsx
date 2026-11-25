@@ -2,6 +2,7 @@ import React from 'react';
 import {ScrollView} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {useQuery} from '@tanstack/react-query';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {useRepositories} from '../../core/di';
 import {queryKeys} from '../../core/query';
 import {accountKey} from '../../core/session';
@@ -44,7 +45,12 @@ export function PaymentHistoryScreen() {
         {restore.error ? <AppText color={colors.error}>{restore.error}</AppText> : null}
         {pending.data?.orderId ? <ClayButton label="Check interrupted purchase" tone="ghost" onPress={() => navigation.navigate('OrderDetail', {orderId: pending.data!.orderId!})} /> : null}
         {orders.isLoading ? <LoadingBlock /> : null}
-        {orders.isError ? <ErrorState message="Could not load purchases." onRetry={() => void orders.refetch()} /> : null}
+        {orders.isError ? (
+          <ErrorState
+            message={isFeatureUnavailable(orders.error) ? 'Payment history is not available in the app yet.' : 'Could not load purchases.'}
+            onRetry={isFeatureUnavailable(orders.error) ? undefined : () => void orders.refetch()}
+          />
+        ) : null}
         {orders.data?.map(order => (
           <ClayCard key={order.id} variant="white" onPress={() => navigation.navigate('OrderDetail', {orderId: order.id})}>
             <AppText weight="800">{order.title}</AppText>

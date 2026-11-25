@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -26,6 +25,7 @@ import { clay, gradients } from '../../theme';
 import { useColors } from '../../theme/ThemeProvider';
 import type { NewsArticle } from '../../core/types';
 import type { HomeNav } from '../../navigation/types';
+import {promptPayToEnrol} from '../../features/catalog/payToEnrol';
 import { useNewsArticle } from '../../features/news/hooks/useNewsArticle';
 import { useNewsFeed } from '../../features/news/hooks/useNewsFeed';
 import { styles } from './styles';
@@ -205,8 +205,8 @@ export function NewsArticleScreen() {
         .getState()
         .setPendingDestination({ kind: 'news', id: articleId });
       useSessionStore.getState().showLogin();
-    } else if (data.access.productId) {
-      Alert.alert('Not available', 'Checkout is not available in the app yet.');
+    } else {
+      promptPayToEnrol({kind: 'news', id: articleId, title: data.title});
     }
   };
 
@@ -433,7 +433,7 @@ export function NewsArticleScreen() {
 
           {hasAccess ? (
             <View style={styles.body}>
-              {data.body?.map((paragraph, index) => (
+              {data.body?.length ? data.body.map((paragraph, index) => (
                 <AppText
                   key={`${index}-${paragraph}`}
                   size={bodySize}
@@ -442,7 +442,11 @@ export function NewsArticleScreen() {
                 >
                   {paragraph}
                 </AppText>
-              ))}
+              )) : (
+                <AppText size={bodySize} color={colors.text2}>
+                  The full story has not been published yet.
+                </AppText>
+              )}
             </View>
           ) : (
             <ClayCard variant="orange" style={styles.accessCard}>
@@ -461,20 +465,19 @@ export function NewsArticleScreen() {
                     color={colors.text2}
                     style={styles.accessCopy}
                   >
-                    Get the complete article, key highlights and exam-ready
-                    notes.
+                    Enroll to read the rest of this story.
                   </AppText>
                 </View>
               </View>
               <ClayButton
                 label={
                   isAuthenticated()
-                    ? 'See access options'
+                    ? 'Pay to Enroll'
                     : 'Sign in to continue'
                 }
-                icon={isAuthenticated() ? 'crown' : 'user'}
+                icon={isAuthenticated() ? undefined : 'user'}
+                tone={isAuthenticated() ? 'orange' : 'primary'}
                 compact
-                disabled={isAuthenticated() && !data.access.productId}
                 onPress={openAccess}
               />
             </ClayCard>

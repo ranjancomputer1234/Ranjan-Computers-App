@@ -29,9 +29,16 @@ def loadDotEnv = { File envFile ->
 // Server secrets (offline grant, Mux, Cloudinary) stay in .env and are not copied into BuildConfig.
 def dotenv = loadDotEnv(new File(rootProject.projectDir, "../.env"))
 def rediValue = { name, fallback = "" ->
-    def fromFile = dotenv[name]
-    if (fromFile != null && !fromFile.toString().trim().isEmpty()) return fromFile.toString()
-    return providers.gradleProperty(name).orElse(providers.environmentVariable(name)).getOrElse(fallback)
+    def names = [name]
+    if (name.startsWith("REDI_")) names.add("RACI_" + name.substring("REDI_".length()))
+    if (name == "REDI_GOOGLE_MAPS_API_KEY") names.add("GOOGLE_MAPS_API_KEY")
+    for (candidate in names) {
+        def fromFile = dotenv[candidate]
+        if (fromFile != null && !fromFile.toString().trim().isEmpty()) return fromFile.toString()
+        def fromEnv = providers.gradleProperty(candidate).orElse(providers.environmentVariable(candidate)).getOrNull()
+        if (fromEnv != null && !fromEnv.toString().trim().isEmpty()) return fromEnv.toString()
+    }
+    return fallback
 }
 def quoted = { value -> '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"' }
 def uploadStore = rediValue("REDI_UPLOAD_STORE_FILE")
@@ -71,21 +78,22 @@ def enableProguardInReleaseBuilds = true
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
-    ndkVersion rootProject.ext.ndkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
-    compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion = rootProject.ext.ndkVersion
+    buildToolsVersion = rootProject.ext.buildToolsVersion
+    compileSdk = rootProject.ext.compileSdkVersion
 
-    namespace "com.rediapp.learner"
+    namespace = "com.rediapp.learner"
     defaultConfig {
-        applicationId "com.rediapp.learner"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode rediValue("REDI_VERSION_CODE", "1").toInteger()
-        versionName rediValue("REDI_VERSION_NAME", "1.0.0")
+        applicationId = "com.rediapp.learner"
+        minSdkVersion = rootProject.ext.minSdkVersion
+        targetSdkVersion = rootProject.ext.targetSdkVersion
+        versionCode = rediValue("REDI_VERSION_CODE", "1").toInteger()
+        versionName = rediValue("REDI_VERSION_NAME", "1.0.0")
         buildConfigField "boolean", "REDI_USE_EMBEDDED_JS", rediUseEmbeddedJs ? "true" : "false"
         buildConfigField "String", "REDI_PRIVACY_POLICY_URL", quoted(rediValue("REDI_PRIVACY_POLICY_URL"))
         buildConfigField "String", "REDI_ACCOUNT_DELETION_URL", quoted(rediValue("REDI_ACCOUNT_DELETION_URL"))
-        buildConfigField "String", "REDI_GOOGLE_WEB_CLIENT_ID", quoted(rediValue("REDI_GOOGLE_WEB_CLIENT_ID"))
+        buildConfigField "String", "REDI_GOOGLE_WEB_CLIENT_ID", quoted(rediValue("REDI_GOOGLE_WEB_CLIENT_ID", "635583983642-ia28ucmasecjt4qrb70grrp6ss9b3t74.apps.googleusercontent.com"))
+        buildConfigField "String", "REDI_GOOGLE_MAPS_API_KEY", quoted(rediValue("REDI_GOOGLE_MAPS_API_KEY"))
         buildConfigField "boolean", "REDI_FIREBASE_ENABLED", rediFirebaseEnabled ? "true" : "false"
         buildConfigField "String", "REDI_TIMEOUT_MS", quoted(rediValue("REDI_TIMEOUT_MS", "15000"))
         buildConfigField "String", "REDI_SEED_RIYA_EMAIL", '""'
@@ -96,36 +104,36 @@ android {
     }
     signingConfigs {
         debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            storeFile = file('debug.keystore')
+            storePassword = 'android'
+            keyAlias = 'androiddebugkey'
+            keyPassword = 'android'
         }
         if (hasUploadKey) {
             release {
-                storeFile file(uploadStore)
-                storePassword rediValue("REDI_UPLOAD_STORE_PASSWORD")
-                keyAlias rediValue("REDI_UPLOAD_KEY_ALIAS")
-                keyPassword rediValue("REDI_UPLOAD_KEY_PASSWORD")
+                storeFile = file(uploadStore)
+                storePassword = rediValue("REDI_UPLOAD_STORE_PASSWORD")
+                keyAlias = rediValue("REDI_UPLOAD_KEY_ALIAS")
+                keyPassword = rediValue("REDI_UPLOAD_KEY_PASSWORD")
             }
         }
     }
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            signingConfig = signingConfigs.debug
             buildConfigField "String", "REDI_API_BASE_URL", quoted(rediValue("REDI_API_BASE_URL", "https://redi-api-production.up.railway.app/api"))
             buildConfigField "String", "REDI_SEED_RIYA_EMAIL", quoted(rediValue("REDI_SEED_RIYA_EMAIL"))
             buildConfigField "String", "REDI_SEED_RIYA_PASSWORD", quoted(rediValue("REDI_SEED_RIYA_PASSWORD"))
             buildConfigField "String", "REDI_SEED_ARJUN_EMAIL", quoted(rediValue("REDI_SEED_ARJUN_EMAIL"))
             buildConfigField "String", "REDI_SEED_ARJUN_PASSWORD", quoted(rediValue("REDI_SEED_ARJUN_PASSWORD"))
-            manifestPlaceholders = [usesCleartextTraffic: "true", firebaseInstallationIdEnabled: rediFirebaseEnabled ? "true" : "false"]
+            manifestPlaceholders = [usesCleartextTraffic: "true", firebaseInstallationIdEnabled: rediFirebaseEnabled ? "true" : "false", googleMapsApiKey: rediValue("REDI_GOOGLE_MAPS_API_KEY")]
         }
         release {
-            if (hasUploadKey) signingConfig signingConfigs.release
+            if (hasUploadKey) signingConfig = signingConfigs.release
             buildConfigField "String", "REDI_API_BASE_URL", quoted(rediValue("REDI_API_BASE_URL", "https://redi-api-production.up.railway.app/api"))
-            manifestPlaceholders = [usesCleartextTraffic: "false", firebaseInstallationIdEnabled: rediFirebaseEnabled ? "true" : "false"]
-            minifyEnabled enableProguardInReleaseBuilds
-            shrinkResources true
+            manifestPlaceholders = [usesCleartextTraffic: "false", firebaseInstallationIdEnabled: rediFirebaseEnabled ? "true" : "false", googleMapsApiKey: rediValue("REDI_GOOGLE_MAPS_API_KEY")]
+            minifyEnabled = enableProguardInReleaseBuilds
+            shrinkResources = true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
@@ -134,15 +142,20 @@ android {
 
 tasks.register("verifyReleaseConfiguration") {
     doLast {
-        ["REDI_API_BASE_URL", "REDI_PRIVACY_POLICY_URL", "REDI_ACCOUNT_DELETION_URL"].each { key ->
-            def value = rediValue(key)
+        def requireHttps = { String key, String value ->
             def uri = value ? new URI(value) : null
             if (uri == null || uri.scheme != "https" || !uri.host || uri.userInfo || uri.host.endsWith(".invalid") || uri.host == "localhost") {
                 throw new GradleException("${key} must be a real public HTTPS URL before a release can be built.")
             }
         }
+        requireHttps("REDI_API_BASE_URL", rediValue("REDI_API_BASE_URL"))
+        ["REDI_PRIVACY_POLICY_URL", "REDI_ACCOUNT_DELETION_URL"].each { key ->
+            def value = rediValue(key)?.trim()
+            if (value) requireHttps(key, value)
+            else project.logger.warn("${key} is empty. The website link stays hidden until a public HTTPS page is set.")
+        }
         if (!hasUploadKey || !file(uploadStore).isFile()) throw new GradleException("Provide your REDI_UPLOAD_STORE_FILE upload keystore; debug signing is never used for release.")
-        if (!rediFirebaseEnabled) throw new GradleException("Provide android/app/google-services.json before building a release with admin notifications.")
+        if (!rediFirebaseEnabled) project.logger.warn("android/app/google-services.json is missing. This release ships with remote push disabled.")
         ["REDI_UPLOAD_STORE_PASSWORD", "REDI_UPLOAD_KEY_ALIAS", "REDI_UPLOAD_KEY_PASSWORD"].each { key ->
             if (!rediValue(key)) throw new GradleException("Missing release signing setting: ${key}")
         }
@@ -154,8 +167,12 @@ tasks.configureEach { if (name == "preReleaseBuild") dependsOn("verifyReleaseCon
 
 dependencies {
     implementation("com.android.billingclient:billing:8.3.0")
-    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
+    implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-messaging")
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 

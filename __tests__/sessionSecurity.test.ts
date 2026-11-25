@@ -19,9 +19,15 @@ it('sends the learner token only to routes marked learner-authenticated', async 
   const me = await client.get('/me');
   const home = await client.get('/home');
   const login = await client.post('/auth/login', {email: 'learner@example.com', password: 'secret1'});
+  const logout = await client.post('/auth/logout');
   expect(me.data.authorization).toBe('Bearer old');
   expect(home.data.authorization).toBeUndefined();
   expect(login.data.authorization).toBeUndefined();
+  expect(logout.data.authorization).toBe('Bearer old');
+  const guestPush = await client.put('/push-devices/guest', {token: 'fcm-token-value', platform: 'android'});
+  const learnerPush = await client.put('/me/push-devices/current', {token: 'fcm-token-value', platform: 'android'});
+  expect(guestPush.data.authorization).toBeUndefined();
+  expect(learnerPush.data.authorization).toBe('Bearer old');
 });
 
 it('discards an old response when the account changes', async () => {
@@ -42,6 +48,21 @@ it('clears the learner token after an authenticated 401 without refreshing', asy
   client.defaults.adapter = config => unauthorized(config);
   await expect(client.get('/me')).rejects.toMatchObject({httpStatus: 401});
   expect(tokenStore.getAccessToken()).toBeNull();
+});
+
+it('keeps the learner signed in when checkout is unauthorized but the session still works', async () => {
+  await persistTokens(tokens);
+  const client = createHttpClient();
+  client.defaults.adapter = async config => {
+    const path = (config.url ?? '').split('?')[0];
+    if (path === '/me') return response(config, {id: 'learner-a'});
+    return unauthorized(config);
+  };
+  await expect(client.post('/payments/create-order', {amount: 100})).rejects.toMatchObject({
+    code: 'payment_unavailable',
+    httpStatus: 401,
+  });
+  expect(tokenStore.getAccessToken()).toBe('old');
 });
 
 it('does not forward the access token to absolute third-party URLs', async () => {

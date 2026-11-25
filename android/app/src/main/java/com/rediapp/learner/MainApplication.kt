@@ -28,6 +28,7 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     RediNotificationsModule.createChannels(this)
+    RediNotificationsModule.registerPush()
     loadReactNative(this)
   }
 }

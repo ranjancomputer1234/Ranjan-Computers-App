@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -128,7 +129,12 @@ private object RediNotificationPresenter {
 
 class RediFirebaseMessagingService : FirebaseMessagingService() {
   override fun onRegistered(fid: String) {
+    if (BuildConfig.DEBUG) Log.d("FCM", fid)
     RediNotificationsModule.handleNewInstallationId(fid)
+  }
+
+  override fun onNewToken(token: String) {
+    RediNotificationsModule.handleNewFcmToken(token)
   }
 
   override fun onMessageReceived(message: RemoteMessage) {
@@ -150,10 +156,21 @@ class RediNotificationsModule(private val context: ReactApplicationContext) : Re
     activeModule = WeakReference(this)
   }
 
-  override fun getName() = "RediNotifications"
+  override fun getName() = "RaciNotifications"
 
   @ReactMethod
   fun isSupported(promise: Promise) = promise.resolve(BuildConfig.REDI_FIREBASE_ENABLED)
+
+  @ReactMethod
+  fun getToken(promise: Promise) {
+    if (!BuildConfig.REDI_FIREBASE_ENABLED) {
+      promise.resolve(null)
+      return
+    }
+    FirebaseMessaging.getInstance().token
+      .addOnSuccessListener { promise.resolve(it) }
+      .addOnFailureListener { promise.reject("push_token_failed", "Could not get a notification token.", it) }
+  }
 
   @ReactMethod
   fun getInstallationId(promise: Promise) {
@@ -224,6 +241,26 @@ class RediNotificationsModule(private val context: ReactApplicationContext) : Re
 
     fun createChannels(context: Context) = RediNotificationPresenter.createChannels(context)
 
+    /** Registers this install with FCM. Debug builds log the installation ID under the `FCM` tag. */
+    fun registerPush() {
+      if (!BuildConfig.REDI_FIREBASE_ENABLED) return
+      runCatching { FirebaseMessaging.getInstance().register() }
+        .onSuccess { task ->
+          task.addOnSuccessListener {
+            FirebaseInstallations.getInstance().id
+              .addOnSuccessListener { id -> if (BuildConfig.DEBUG) Log.d("FCM", id) }
+              .addOnFailureListener { error ->
+                if (BuildConfig.DEBUG) Log.w("FCM", "Could not read the Firebase installation ID", error)
+              }
+          }.addOnFailureListener { error ->
+            if (BuildConfig.DEBUG) Log.w("FCM", "Could not register for push", error)
+          }
+        }
+        .onFailure { error ->
+          if (BuildConfig.DEBUG) Log.w("FCM", "Firebase Messaging is not ready", error)
+        }
+    }
+
     fun handleNotificationIntent(intent: Intent) {
       val payload = payloadFromIntent(intent) ?: return
       clearNotificationExtras(intent)
@@ -232,10 +269,15 @@ class RediNotificationsModule(private val context: ReactApplicationContext) : Re
     }
 
     fun handleNewInstallationId(fid: String) {
+      if (BuildConfig.DEBUG) Log.d("FCM", fid)
+    }
+
+    fun handleNewFcmToken(token: String) {
+      if (token.length < 8) return
       val module = activeModule?.get() ?: return
       if (!module.context.hasActiveReactInstance()) return
       module.context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit(TOKEN_EVENT, fid)
+        .emit(TOKEN_EVENT, token)
     }
 
     private fun payloadFromIntent(intent: Intent): WritableMap? {

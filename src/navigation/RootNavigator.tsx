@@ -7,6 +7,7 @@ import {themedScreen, useTheme} from '../theme/ThemeProvider';
 import type {RootStackParamList} from './types';
 import {TabNavigator} from './TabNavigator';
 import {
+  CompleteAddressScreen,
   LoginScreen,
   RegisterScreen,
   ForgotPasswordScreen,
@@ -16,15 +17,18 @@ import {
 import {DailyQuizScreen, TestRunnerScreen} from '../screens/assessments';
 import {CheckoutScreen, PaymentSuccessScreen, PaymentFailureScreen, PaymentPendingScreen} from '../screens/payments';
 import {SemesterWaitScreen} from '../screens/semesters';
-import {AppText, ClayButton, LoadingBlock} from '../components/ui';
+import {LoadingBlock} from '../components/ui';
+import {SessionRecoveryScreen} from '../screens/auth/SessionRecoveryScreen';
 import {LegalScreen} from '../screens/support';
 import {SplashScreen} from '../screens/splash/SplashScreen';
 import {OnboardingScreen} from '../screens/onboarding';
 import {usePreferencesStore} from '../features/settings/preferencesStore';
+import {navigationRef} from './navigationRef';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 export function RootNavigator() {
   const status = useSessionStore(s => s.status);
+  const addressPrompt = useSessionStore(s => s.addressPrompt);
   const hydrate = useSessionStore(s => s.hydrate);
   const [showSplash, setShowSplash] = React.useState(true);
   const preferencesHydrated = usePreferencesStore(state => state.hydrated);
@@ -70,19 +74,27 @@ export function RootNavigator() {
   const inApp = status === 'authenticated' || status === 'guest';
 
   if (status === 'recoveryRequired') {
-    return <View style={{flex: 1, justifyContent: 'center', padding: 24, gap: 16, backgroundColor: theme.colors.scroll}}>
-      <AppText weight="800" size={20}>Reconnect to continue</AppText>
-      <AppText>We could not restore your account. Your sign-in details are still saved securely.</AppText>
-      <ClayButton label="Try again" onPress={() => void hydrate()} />
-      <ClayButton label="Sign out" tone="ghost" onPress={() => void useSessionStore.getState().logout()} />
-    </View>;
+    return <SessionRecoveryScreen />;
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
-      <Stack.Navigator screenOptions={screenOptions} initialRouteName={inApp ? 'Main' : onboardingComplete ? 'Login' : 'Onboarding'}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
+      <Stack.Navigator
+        screenOptions={screenOptions}
+        initialRouteName={
+          status === 'authenticated' && addressPrompt
+            ? 'CompleteAddress'
+            : inApp
+              ? 'Main'
+              : onboardingComplete
+                ? 'Login'
+                : 'Onboarding'
+        }>
         {inApp ? (
           <Stack.Group navigationKey={status}>
+            {status === 'authenticated' ? (
+              <Stack.Screen name="CompleteAddress" component={themedScreen(CompleteAddressScreen)} />
+            ) : null}
             <Stack.Screen name="Main" component={themedScreen(TabNavigator)} />
             {status === 'authenticated' ? <Stack.Group>
             <Stack.Screen name="DailyQuiz" component={themedScreen(DailyQuizScreen)} />

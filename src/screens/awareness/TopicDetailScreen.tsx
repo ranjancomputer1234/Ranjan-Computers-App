@@ -28,6 +28,7 @@ import { shareService } from '../../core/services';
 import { accountKey } from '../../core/session';
 import { getPreference, setPreference } from '../../core/storage';
 import type { AwarenessTopic } from '../../core/types';
+import {promptPayToEnrol} from '../../features/catalog/payToEnrol';
 import { useBookmark } from '../../core/useBookmark';
 import type { HomeNav } from '../../navigation/types';
 import { colors, space } from '../../theme';
@@ -371,7 +372,9 @@ export function TopicDetailScreen() {
           {data.access.state !== 'granted' ? (
             <EmptyState
               title="This guide is locked"
-              body="Your current plan does not include this topic yet."
+              body="Enroll to open this guide."
+              actionLabel="Pay to Enroll"
+              onAction={() => promptPayToEnrol({kind: 'topic', id: data.id, title: data.title})}
             />
           ) : entries.length === 0 ? (
             <EmptyState

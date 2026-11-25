@@ -24,6 +24,7 @@ type PreferencesState = {
   notifTests: boolean;
   notifNews: boolean;
   notifOffers: boolean;
+  notifAnnouncements: boolean;
   onboardingComplete: boolean;
   learningGoal: LearningGoal | null;
   hydrate: () => Promise<void>;
@@ -37,6 +38,7 @@ type PreferencesState = {
   setNotifTests: (value: boolean) => void;
   setNotifNews: (value: boolean) => void;
   setNotifOffers: (value: boolean) => void;
+  setNotifAnnouncements: (value: boolean) => void;
   setOnboardingComplete: (value: boolean) => void;
   setLearningGoal: (value: LearningGoal | null) => void;
 };
@@ -57,6 +59,7 @@ export const usePreferencesStore = create<PreferencesState>(set => ({
       notifTests,
       notifNews,
       notifOffers,
+      notifAnnouncements,
       onboardingComplete,
       learningGoal,
     ] = await Promise.all([
@@ -71,6 +74,7 @@ export const usePreferencesStore = create<PreferencesState>(set => ({
       getPreference('notifTests', DEFAULT_PREFERENCES.notifTests),
       getPreference('notifNews', DEFAULT_PREFERENCES.notifNews),
       getPreference('notifOffers', DEFAULT_PREFERENCES.notifOffers),
+      getPreference('notifAnnouncements', DEFAULT_PREFERENCES.notifAnnouncements),
       getPreference('onboardingComplete', DEFAULT_PREFERENCES.onboardingComplete),
       getPreference('learningGoal', DEFAULT_PREFERENCES.learningGoal),
     ]);
@@ -89,6 +93,7 @@ export const usePreferencesStore = create<PreferencesState>(set => ({
       notifTests: Boolean(notifTests),
       notifNews: Boolean(notifNews),
       notifOffers: Boolean(notifOffers),
+      notifAnnouncements: Boolean(notifAnnouncements),
       onboardingComplete: Boolean(onboardingComplete),
       learningGoal: isLearningGoal(learningGoal) ? learningGoal : null,
     });
@@ -136,6 +141,10 @@ export const usePreferencesStore = create<PreferencesState>(set => ({
   setNotifOffers: value => {
     set({notifOffers: value});
     void setPreference('notifOffers', value);
+  },
+  setNotifAnnouncements: value => {
+    set({notifAnnouncements: value});
+    void setPreference('notifAnnouncements', value);
   },
   setOnboardingComplete: value => {
     set({onboardingComplete: value});

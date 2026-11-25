@@ -1,6 +1,7 @@
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import type {CompositeNavigationProp, NavigatorScreenParams, RouteProp} from '@react-navigation/native';
+import type {ContentKind} from '../core/types';
 
 export type PricingFilter = 'all' | 'free' | 'paid';
 
@@ -96,7 +97,6 @@ export type ProfileStackParamList = {
   Legal: {slug: string};
   PaymentHistory: undefined;
   OrderDetail: {orderId: string};
-  Subscription: undefined;
 };
 
 export type TabParamList = {
@@ -113,16 +113,27 @@ export type RootStackParamList = {
   Login: {returnTo?: string} | undefined;
   Register: undefined;
   ForgotPassword: undefined;
-  VerifyContact: {challengeId: string; mode: 'register' | 'reset' | 'profile'};
+  VerifyContact: {challengeId: string; mode: 'register' | 'reset' | 'profile'; sentTo?: string};
   ResetPassword: {challengeId: string};
+  CompleteAddress: undefined;
   Main: NavigatorScreenParams<TabParamList>;
   DailyQuiz: {testId: string; attemptId?: string};
   TestRunner: {attemptId: string};
-  Checkout: {productId: string; returnTo?: string};
+  Checkout: CheckoutParams;
   PaymentSuccess: {orderId: string};
   PaymentFailure: {orderId: string};
   PaymentPending: {orderId: string};
   SemesterWait: {enrollmentId: string; semesterId: string};
+};
+
+export type CheckoutParams = {
+  productId: string;
+  returnTo?: string;
+  title?: string;
+  amountMinor?: number;
+  currency?: string;
+  contentKind?: ContentKind;
+  contentId?: string;
 };
 
 export type RootNav = NativeStackNavigationProp<RootStackParamList>;

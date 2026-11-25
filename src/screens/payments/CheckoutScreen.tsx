@@ -1,8 +1,9 @@
 import React from 'react';
-import {Pressable, ScrollView, View} from 'react-native';
+import {Pressable, View} from 'react-native';
 import {clay, colors, gradients} from '../../theme';
 import {AppText, ErrorState, FormField, LoadingBlock} from '../../components/ui';
 import {ClayButton, ClayCard} from '../../components/ui/Clay';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {DetailHeader, Screen, StickyActionFooter} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
 import {Icon} from '../../assets/icons';
@@ -23,10 +24,6 @@ export function CheckoutScreen() {
     removeCoupon,
     method,
     setMethod,
-    instrument,
-    setInstrument,
-    expanded,
-    setExpanded,
     availableMethods,
     inAppCheckout,
     quote,
@@ -34,6 +31,8 @@ export function CheckoutScreen() {
     pay,
     data,
     payableLabel,
+    freeClaim,
+    quoteReady,
     unavailable,
     countdown,
     expired,
@@ -44,7 +43,8 @@ export function CheckoutScreen() {
   const couponSaved = data?.couponDiscountMinor ?? 0;
   const couponApplied = Boolean(appliedCoupon && data?.coupon === appliedCoupon);
   const busy = pay.isPending || quote.isFetching;
-  const canPay = Boolean(data) && !busy && !unavailable && !expired && (!inAppCheckout || Boolean(method));
+  const canPay = Boolean(data) && quoteReady && !busy && !unavailable && !expired && (!inAppCheckout || Boolean(method));
+  const payLabel = pay.isPending ? 'Processing…' : freeClaim ? 'Enroll for free' : payableLabel ? `Pay ${payableLabel} Securely` : 'Pay to Enroll';
 
   return (
     <Screen padded={false}>
@@ -54,7 +54,7 @@ export function CheckoutScreen() {
         onBack={() => navigation.goBack()}
         right={<SecureBadge />}
       />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.checkoutPage} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.checkoutPage} showsVerticalScrollIndicator={false}>
         {quote.isLoading && !data ? <LoadingBlock /> : null}
         {quote.isError && !data ? <ErrorState message="Could not load this order." onRetry={() => void quote.refetch()} /> : null}
 
@@ -173,13 +173,7 @@ export function CheckoutScreen() {
                       accessibilityRole="radio"
                       accessibilityState={{selected}}
                       accessibilityLabel={item.label}
-                      onPress={() => {
-                        if (selected) setExpanded(current => (current === item.id ? undefined : item.id));
-                        else {
-                          setMethod(item.id);
-                          setExpanded(item.id === 'upi' ? undefined : item.id);
-                        }
-                      }}
+                      onPress={() => setMethod(item.id)}
                       style={({pressed}) => [styles.payRow, selected && styles.payRowOn, pressed && styles.pressed]}>
                       <View style={[styles.radio, selected && styles.radioOn]}>{selected ? <View style={styles.radioDot} /> : null}</View>
                       <View style={[styles.payIcon, {backgroundColor: clay[item.clay].bg}]}>
@@ -190,18 +184,11 @@ export function CheckoutScreen() {
                           {item.label}
                         </AppText>
                         <AppText weight="500" size={9} color={colors.text2}>
-                          {item.hint}
+                          {selected ? nextStepHint(item.id) : item.hint}
                         </AppText>
                       </View>
                       <MethodAccessory item={item} />
                     </Pressable>
-                    {selected && expanded === item.id ? (
-                      <MethodDetails
-                        item={item}
-                        instrument={instrument}
-                        onSelect={setInstrument}
-                      />
-                    ) : null}
                   </View>
                 );
               })}
@@ -239,24 +226,33 @@ export function CheckoutScreen() {
             }}
           />
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <StickyActionFooter>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={pay.isPending ? 'Processing payment' : `Pay ${payableLabel || ''} securely`}
+          accessibilityLabel={payLabel}
           disabled={!canPay}
-          onPress={() => pay.mutate()}
+          onPress={() => {
+            pay.mutate();
+          }}
           style={({pressed}) => [{width: '100%', opacity: !canPay ? 0.5 : pressed ? 0.9 : 1}]}>
           <Gradient colors={['#FB8C00', '#F57C00']} style={styles.payCta}>
             <Icon name="lock" size={14} color="#fff" />
             <AppText weight="800" size={13} color="#fff">
-              {pay.isPending ? 'Processing…' : `Pay ${payableLabel || ''} Securely`}
+              {payLabel}
             </AppText>
           </Gradient>
         </Pressable>
       </StickyActionFooter>
     </Screen>
   );
+}
+
+function nextStepHint(method: PaymentMethodView['id']) {
+  if (method === 'upi') return 'Next: Razorpay opens GPay, PhonePe, Paytm, and other UPI apps';
+  if (method === 'card') return 'Next: Razorpay opens a secure card form';
+  if (method === 'netbanking') return 'Next: Razorpay opens your bank';
+  return 'Next: Razorpay opens the wallet you choose';
 }
 
 function SecureBadge() {
@@ -290,42 +286,3 @@ function MethodAccessory({item}: {item: PaymentMethodView}) {
   return <Icon name="chev" size={14} color="#B0BEC5" />;
 }
 
-function MethodDetails({
-  item,
-  instrument,
-  onSelect,
-}: {
-  item: PaymentMethodView;
-  instrument?: string;
-  onSelect: (value: string) => void;
-}) {
-  if (item.id === 'card') {
-    return (
-      <View style={styles.cardHint}>
-        <AppText weight="600" size={11} color={colors.text2} style={{lineHeight: 16}}>
-          Card number, expiry and CVV are entered on the next secure payment step. RACI never stores your card details.
-        </AppText>
-      </View>
-    );
-  }
-  if (!item.options?.length) return null;
-  return (
-    <View style={styles.optionWrap}>
-      {item.options.map(option => {
-        const on = instrument === option;
-        return (
-          <Pressable
-            key={option}
-            accessibilityRole="button"
-            accessibilityState={{selected: on}}
-            onPress={() => onSelect(option)}
-            style={[styles.optionChip, on && styles.optionChipOn]}>
-            <AppText weight="700" size={10.5} color={on ? colors.activeBlue : colors.navy}>
-              {option}
-            </AppText>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}

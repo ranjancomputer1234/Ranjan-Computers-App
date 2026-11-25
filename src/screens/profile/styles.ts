@@ -65,6 +65,7 @@ export const styles = createThemedStyles({
   emptyAchievement: {flexDirection: 'row', alignItems: 'center'},
   emptyAchievementText: {flex: 1, lineHeight: 17},
   menuList: {gap: 10},
+  logoutCard: {marginTop: 4, paddingVertical: 10, paddingHorizontal: 11},
   menuCard: {paddingVertical: 10, paddingHorizontal: 11},
   row: {flexDirection: 'row', alignItems: 'center', gap: 11},
   rowCopy: {flex: 1, minWidth: 0},

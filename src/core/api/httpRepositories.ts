@@ -1,22 +1,59 @@
-import {http, tokenStore} from './http';
+import {
+  isInternalTestCourse,
+  isInternalTestTitle,
+  isPlaceholderCopy,
+  lessonNotes,
+  presentCourse,
+  syllabusItems,
+} from '../../features/catalog/courseCopy';
+import {loginPhone} from '../../features/auth/schema';
+import {compactAddress} from '../../features/location/address';
+import {isPublishedResult} from './resultPublication';
+import {playableStream} from '../playback';
+import {visibleLiveClasses} from '../../features/live/visibleClasses';
+import {normalizeCheckoutQuote} from '../../features/payments/couponQuote';
+import {paymentRecordStatus} from '../../features/payments/paymentOutcome';
+import {http, isAppError, tokenStore} from './http';
 import {appConfig} from '../config';
 import {learnerDeviceIdentity} from '../installation';
+import {
+  localNotificationPage,
+  markAllLocalNotificationsRead,
+  markLocalNotificationRead,
+} from '../localInbox';
 import {assertOfflineGrant, offlineFiles} from '../offlineFiles';
-import type {Repositories} from '../repositories';
+import type {CatalogQuery, Repositories} from '../repositories';
+import {accountKey} from '../session';
 import {getAccountScoped, setAccountScoped} from '../storage';
 import type {
   AccessDecision,
+  Attempt,
+  AwarenessTopic,
   Bookmark,
   CatalogItem,
   ClayVariantName,
+  ContentKind,
   Course,
   DownloadItem,
   Enrollment,
+  Exam,
+  Fact,
+  HomeDashboard,
+  InterviewQuestion,
   IssuedDocument,
   LearnerProfile,
   Lesson,
+  LiveClass,
+  NewsArticle,
+  NotificationCategory,
+  Order,
+  NotificationItem,
   Page,
+  PricingFilter,
+  Question,
   SessionTokens,
+  TestDefinition,
+  TestResult,
 } from '../types';
 import type {DownloadAuthorization} from '../offlineFiles';
 
@@ -26,14 +63,21 @@ type ApiLearner = {
   lastName: string;
   email: string;
   phone?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  placeId?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
   accountState: LearnerProfile['accountState'];
   verifiedEmail?: boolean;
   verifiedPhone?: boolean;
   batchId?: string | null;
 };
 
-type ApiAuth = {accessToken: string; learner: ApiLearner};
+type ApiAuth = {accessToken: string; learner: ApiLearner; isNewUser?: boolean};
 
 type ApiAccess = {
   granted: boolean;
@@ -55,6 +99,9 @@ type ApiLesson = {
   isPreview?: boolean;
   hasMedia?: boolean;
   resourceId?: string | null;
+  completed?: boolean;
+  progressPct?: number | null;
+  progress?: number | {percent?: number; progressPct?: number; completed?: boolean} | null;
   resources?: Array<{
     id: string;
     title?: string | null;
@@ -74,7 +121,13 @@ type ApiCourse = {
   deliveryType?: 'standard' | 'semester_certification';
   coverImageUrl?: string | null;
   estimatedMinutes?: number | null;
+  outcomes?: string[] | null;
+  learningOutcomes?: string[] | null;
+  prerequisites?: string[] | null;
+  durationLabel?: string | null;
+  syllabus?: Array<{title?: string | null; detail?: string | null; description?: string | null; durationMinutes?: number | null}> | string[] | null;
   lessons?: ApiLesson[];
+  price?: {amountMinor?: number | null; currency?: string | null} | null;
   access?: ApiAccess | null;
 };
 
@@ -98,6 +151,7 @@ type ApiBanner = {
   subtitle?: string | null;
   ctaLabel?: string | null;
   imageUrl?: string | null;
+  altText?: string | null;
   themeKey?: string | null;
   targetKind?: string | null;
   targetRef?: string | null;
@@ -129,6 +183,14 @@ type ApiEnrollment = {
   startsAt?: string;
   updatedAt?: string;
   course?: {id: string; title: string; slug?: string; lifecycle?: string};
+  progress?: {
+    completedLessons?: number;
+    totalLessons?: number;
+    percent?: number;
+    progressPct?: number;
+    nextLessonId?: string;
+    updatedAt?: string;
+  } | null;
 };
 
 type ApiDocument = {
@@ -210,14 +272,29 @@ async function get<T>(url: string, params?: object): Promise<T> {
   return response.data;
 }
 
-async function post<T>(url: string, body?: object): Promise<T> {
-  const response = await http.post<T>(url, body);
+async function post<T>(url: string, body?: object, headers?: Record<string, string>): Promise<T> {
+  const response = await http.post<T>(url, body, headers ? {headers} : undefined);
   return response.data;
 }
 
 async function patch<T>(url: string, body?: object): Promise<T> {
   const response = await http.patch<T>(url, body);
   return response.data;
+}
+
+async function put<T>(url: string, body?: object): Promise<T> {
+  const response = await http.put<T>(url, body);
+  return response.data;
+}
+
+/** Missing learner routes are not published yet. Lists stay empty instead of failing the screen. */
+async function getOptional<T>(url: string, params?: object): Promise<T | undefined> {
+  try {
+    return await get<T>(url, params);
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) return undefined;
+    throw error;
+  }
 }
 
 function unavailable<T>(feature: string): Promise<T> {
@@ -227,6 +304,28 @@ function unavailable<T>(feature: string): Promise<T> {
     retryable: false,
   });
 }
+
+/** Used when GET /support is missing. No invented phone number or inbox. */
+const STATIC_SUPPORT = {
+  faqs: [
+    {
+      q: 'Why is a course missing its lessons?',
+      a: 'Lessons appear after they are published. An empty lesson list means they are not available yet. A connection problem is shown separately.',
+    },
+    {
+      q: 'Why is a paid course still locked?',
+      a: 'Paid courses and other paid items use Pay to Enroll, which opens checkout. They stay locked until that payment is completed. If you have already paid, send feedback so the institute can check your access.',
+    },
+    {
+      q: 'Where are test scores, notifications, and downloads?',
+      a: 'Open Notifications for class reminders and account messages. Attempts, semester progress, and real file downloads stay unavailable until those learner services are connected.',
+    },
+    {
+      q: 'Are saved items synced?',
+      a: 'Bookmarks stay on this device for the signed-in account. They are not synced to other devices yet.',
+    },
+  ],
+};
 
 function expiryFromNow(): string {
   return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -239,7 +338,16 @@ function toProfile(learner: ApiLearner): LearnerProfile {
     fullName: fullName || learner.email,
     email: learner.email,
     phone: learner.phone || undefined,
-    city: learner.city || undefined,
+    ...compactAddress({
+      addressLine1: learner.addressLine1 || undefined,
+      addressLine2: learner.addressLine2 || undefined,
+      city: learner.city || undefined,
+      state: learner.state || undefined,
+      pincode: learner.pincode || undefined,
+      placeId: learner.placeId || undefined,
+      latitude: coord(learner.latitude),
+      longitude: coord(learner.longitude),
+    }),
     interests: [],
     stats: {courses: 0, tests: 0, streakDays: 0},
     achievements: [],
@@ -248,6 +356,12 @@ function toProfile(learner: ApiLearner): LearnerProfile {
     verifiedPhone: learner.verifiedPhone,
     batchId: learner.batchId || undefined,
   };
+}
+
+function coord(value: number | string | null | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return undefined;
 }
 
 function toSession(auth: ApiAuth): {tokens: SessionTokens; profile: LearnerProfile} {
@@ -295,25 +409,57 @@ function toAccess(access: ApiAccess | null | undefined, courseMode?: ApiCourse['
   };
 }
 
+function toMoney(price: ApiCourse['price']): Course['price'] {
+  const amountMinor = price?.amountMinor;
+  if (typeof amountMinor !== 'number' || !Number.isFinite(amountMinor) || amountMinor <= 0) return undefined;
+  const currency = price?.currency?.trim();
+  return {amountMinor: Math.round(amountMinor), currency: currency || 'INR'};
+}
+
+function cleanCopy(value?: string | null): string | undefined {
+  const textValue = text(value);
+  if (!textValue || isPlaceholderCopy(textValue)) return undefined;
+  return textValue;
+}
+
+function toSyllabus(course: ApiCourse): Course['syllabus'] {
+  return syllabusItems(course.syllabus);
+}
+
 function toCourse(course: ApiCourse): Course {
   const access = toAccess(course.access, course.commercialMode);
-  return {
+  const paid = course.commercialMode !== 'free';
+  const minutes = typeof course.estimatedMinutes === 'number' && course.estimatedMinutes > 0
+    ? course.estimatedMinutes
+    : undefined;
+  return presentCourse({
     id: course.id,
     title: course.title,
-    subtitle: course.summary || course.shortTitle || undefined,
+    subtitle: cleanCopy(course.summary) || cleanCopy(course.shortTitle) || undefined,
     kind: 'course',
-    pricing: course.commercialMode === 'free' ? 'free' : 'paid',
+    pricing: paid ? 'paid' : 'free',
+    price: paid ? toMoney(course.price) : undefined,
     clay: course.commercialMode === 'free' ? 'mint' : 'blue',
     icon: 'bookopen',
     letter: course.shortTitle?.charAt(0) || course.title.charAt(0),
     imageUrl: course.coverImageUrl || undefined,
     access,
-    description: course.description || course.summary || undefined,
+    description: cleanCopy(course.description),
+    outcomes: stringList(course.learningOutcomes) ?? stringList(course.outcomes),
+    prerequisites: stringList(course.prerequisites),
+    syllabus: toSyllabus(course),
+    durationMinutes: minutes,
+    durationLabel: text(course.durationLabel),
     lessonCount: course.lessons?.length,
     isSemester: course.deliveryType === 'semester_certification',
     purchased: access.state === 'granted' && course.commercialMode !== 'free',
     enrolled: course.access?.source === 'enrollment',
-  };
+  }, course.slug);
+}
+
+function stringList(value?: string[] | null): string[] | undefined {
+  const items = (value ?? []).map(item => item.trim()).filter(item => item && !isPlaceholderCopy(item));
+  return items.length ? items : undefined;
 }
 
 function toLesson(lesson: ApiLesson, courseId = lesson.courseId ?? '', granted = true): Lesson {
@@ -324,7 +470,7 @@ function toLesson(lesson: ApiLesson, courseId = lesson.courseId ?? '', granted =
     index: lesson.sortOrder + 1,
     durationSeconds: lesson.durationMinutes ? lesson.durationMinutes * 60 : undefined,
     state: lesson.isPreview ? 'preview' : granted ? 'available' : 'locked',
-    notes: lesson.description || undefined,
+    notes: lessonNotes(courseId, lesson.id, lesson.title, lesson.description),
   };
 }
 
@@ -358,6 +504,7 @@ function toSection(section: ApiSection): CatalogItem {
     subtitle: section.description || undefined,
     kind,
     pricing: section.pricingFilter === 'paid' ? 'paid' : 'free',
+    pricingFilter: section.pricingFilter === 'free' || section.pricingFilter === 'paid' ? section.pricingFilter : 'all',
     clay,
     icon: iconKey,
     imageUrl: section.imageUrl || undefined,
@@ -390,16 +537,685 @@ function toDocument(doc: ApiDocument, learnerName: string): IssuedDocument {
   };
 }
 
+const OPEN_ACCESS: AccessDecision = {state: 'granted', canPreview: true, canDownload: false};
+const LIVE_STATUSES = new Set<LiveClass['status']>([
+  'scheduled', 'starting', 'live', 'reconnecting', 'ended', 'cancelled',
+]);
+
+function asRows(payload: unknown): Record<string, unknown>[] {
+  const list = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === 'object'
+      ? (payload as {items?: unknown; data?: unknown; results?: unknown}).items
+        ?? (payload as {data?: unknown}).data
+        ?? (payload as {results?: unknown}).results
+      : undefined;
+  return Array.isArray(list) ? list.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object') : [];
+}
+
+function pageOf<T>(payload: unknown, map: (row: Record<string, unknown>) => T): Page<T> {
+  const items = asRows(payload).map(map);
+  const meta = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? payload as {nextCursor?: string | null; total?: number}
+    : undefined;
+  return {items, nextCursor: meta?.nextCursor ?? null, total: meta?.total ?? items.length};
+}
+
+function text(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function decision(value: unknown, mode?: string): AccessDecision {
+  if (!value || typeof value !== 'object') {
+    return mode === 'free' || mode === undefined ? OPEN_ACCESS : {...EMPTY_ACCESS, reason: 'purchase_required'};
+  }
+  const row = value as ApiAccess & AccessDecision;
+  if (row.state === 'granted' || row.state === 'denied' || row.state === 'unknown') {
+    return {
+      state: row.state,
+      reason: row.reason,
+      productId: row.productId,
+      expiresAt: row.expiresAt,
+      canPreview: Boolean(row.canPreview),
+      canDownload: Boolean(row.canDownload),
+    };
+  }
+  if (typeof row.granted === 'boolean') return toAccess(row, mode as ApiCourse['commercialMode']);
+  return OPEN_ACCESS;
+}
+
+function pricingOf(row: Record<string, unknown>): 'free' | 'paid' {
+  return row.pricing === 'paid' || row.commercialMode === 'paid' ? 'paid' : 'free';
+}
+
+function toExam(row: Record<string, unknown>): Exam {
+  return {
+    id: String(row.id),
+    title: text(row.title) ?? 'Exam',
+    subtitle: text(row.summary) ?? text(row.subtitle) ?? text(row.description),
+    kind: 'exam',
+    pricing: pricingOf(row),
+    clay: 'purple',
+    icon: text(row.iconKey) ?? 'target',
+    imageUrl: text(row.imageUrl) ?? text(row.coverImageUrl),
+    access: decision(row.access, text(row.commercialMode)),
+    description: text(row.description) ?? text(row.summary),
+    relatedExams: Array.isArray(row.relatedExams) ? row.relatedExams.map(String) : undefined,
+    testCount: typeof row.testCount === 'number' ? row.testCount : undefined,
+    learnerCount: typeof row.learnerCount === 'number' ? row.learnerCount : undefined,
+  };
+}
+
+function toTest(row: Record<string, unknown>): TestDefinition {
+  const minutes = typeof row.durationMinutes === 'number' ? row.durationMinutes : undefined;
+  return {
+    id: String(row.id),
+    examId: text(row.examId),
+    title: text(row.title) ?? 'Test',
+    questionCount: typeof row.questionCount === 'number' ? row.questionCount : Array.isArray(row.questions) ? row.questions.length : 0,
+    durationSeconds: typeof row.durationSeconds === 'number' ? row.durationSeconds : minutes ? minutes * 60 : 0,
+    attemptCount: typeof row.attemptCount === 'number' ? row.attemptCount : undefined,
+    pricing: pricingOf(row),
+    marking: text(row.marking),
+    negativeMarking: text(row.negativeMarking),
+    passThreshold: typeof row.passThreshold === 'number' ? row.passThreshold : undefined,
+    attemptLimit: typeof row.attemptLimit === 'number' ? row.attemptLimit : undefined,
+    resumePolicy: text(row.resumePolicy),
+    solutionPolicy: text(row.solutionPolicy),
+    mode: row.mode === 'formal' ? 'formal' : 'practice',
+    access: decision(row.access, text(row.commercialMode)),
+  };
+}
+
+function toQuestion(row: Record<string, unknown>): Question {
+  const options = Array.isArray(row.options) ? row.options : [];
+  return {
+    id: String(row.id),
+    prompt: text(row.prompt) ?? text(row.question) ?? '',
+    helper: text(row.helper),
+    category: text(row.category),
+    options: options.filter((option): option is Record<string, unknown> => Boolean(option) && typeof option === 'object').map(option => ({
+      id: String(option.id),
+      label: text(option.label) ?? text(option.text) ?? '',
+    })),
+    revealAnswer: typeof row.revealAnswer === 'boolean' ? row.revealAnswer : undefined,
+    correctOptionId: text(row.correctOptionId),
+  };
+}
+
+function toAttempt(row: Record<string, unknown>): Attempt & {questions: Question[]} {
+  const answers = row.answers && typeof row.answers === 'object' && !Array.isArray(row.answers)
+    ? Object.fromEntries(Object.entries(row.answers as Record<string, unknown>).map(([key, value]) => [key, String(value)]))
+    : {};
+  const status = row.status;
+  return {
+    id: String(row.id),
+    testId: text(row.testId) ?? '',
+    status: status === 'submitted' || status === 'scored' || status === 'expired' || status === 'abandoned' ? status : 'in_progress',
+    expiresAt: text(row.expiresAt),
+    revision: typeof row.revision === 'number' ? row.revision : 0,
+    currentIndex: typeof row.currentIndex === 'number' ? row.currentIndex : 0,
+    answers,
+    startedAt: text(row.startedAt) ?? new Date().toISOString(),
+    questions: asRows(row.questions).map(toQuestion),
+  };
+}
+
+function lessonPercent(lesson: ApiLesson): number {
+  if (lesson.completed) return 100;
+  if (typeof lesson.progressPct === 'number') return Math.max(0, Math.min(100, Math.round(lesson.progressPct)));
+  if (typeof lesson.progress === 'number') return Math.max(0, Math.min(100, Math.round(lesson.progress)));
+  if (lesson.progress && typeof lesson.progress === 'object') {
+    if (lesson.progress.completed) return 100;
+    const pct = lesson.progress.percent ?? lesson.progress.progressPct;
+    if (typeof pct === 'number') return Math.max(0, Math.min(100, Math.round(pct)));
+  }
+  return 0;
+}
+
+function progressFromEnrollment(row: ApiEnrollment, lessons: ApiLesson[]): Enrollment['progress'] {
+  const updatedAt = row.progress?.updatedAt || row.updatedAt || row.startsAt || new Date(0).toISOString();
+  const server = row.progress;
+  if (server && (server.completedLessons !== undefined || server.totalLessons !== undefined || server.percent !== undefined || server.progressPct !== undefined)) {
+    const totalLessons = server.totalLessons ?? lessons.length;
+    const completedLessons = server.completedLessons ?? lessons.filter(lesson => lessonPercent(lesson) >= 100).length;
+    const percent = server.percent ?? server.progressPct ?? (totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0);
+    return {
+      completedLessons,
+      totalLessons,
+      percent: Math.max(0, Math.min(100, Math.round(percent))),
+      nextLessonId: server.nextLessonId,
+      updatedAt,
+    };
+  }
+  const percents = lessons.map(lessonPercent);
+  const totalLessons = lessons.length;
+  const completedLessons = percents.filter(pct => pct >= 100).length;
+  const percent = totalLessons ? Math.round(percents.reduce((sum, pct) => sum + pct, 0) / totalLessons) : 0;
+  const next = lessons.find((lesson, index) => percents[index] < 100);
+  return {completedLessons, totalLessons, percent, nextLessonId: next?.id, updatedAt};
+}
+
+function toResult(row: Record<string, unknown>): TestResult {
+  const questions = asRows(row.questions).map(question => {
+    const status: 'correct' | 'wrong' | 'skipped' =
+      question.status === 'correct' || question.status === 'wrong' ? question.status : 'skipped';
+    return {
+      id: String(question.id),
+      prompt: text(question.prompt) ?? '',
+      status,
+      selectedOptionId: text(question.selectedOptionId),
+      selectedLabel: text(question.selectedLabel),
+      correctLabel: text(question.correctLabel),
+      explanation: text(question.explanation),
+      section: text(question.section),
+    };
+  });
+  return {
+    attemptId: text(row.attemptId) ?? String(row.id ?? ''),
+    testId: text(row.testId) ?? '',
+    testTitle: text(row.testTitle) ?? text(row.title),
+    score: typeof row.score === 'number' ? row.score : 0,
+    maxScore: typeof row.maxScore === 'number' ? row.maxScore : 0,
+    percent: typeof row.percent === 'number' ? row.percent : 0,
+    rank: typeof row.rank === 'number' ? row.rank : undefined,
+    rankTotal: typeof row.rankTotal === 'number' ? row.rankTotal : undefined,
+    accuracy: typeof row.accuracy === 'number' ? row.accuracy : undefined,
+    timeTakenSeconds: typeof row.timeTakenSeconds === 'number' ? row.timeTakenSeconds : undefined,
+    questions,
+    solutionsAvailable: Boolean(row.solutionsAvailable),
+  };
+}
+
+function toArticle(row: Record<string, unknown>): NewsArticle {
+  const access = decision(row.access, text(row.commercialMode));
+  const granted = access.state === 'granted';
+  const body = granted
+    ? Array.isArray(row.body) ? row.body.map(part => String(part)) : text(row.body) ? [String(row.body)] : undefined
+    : undefined;
+  return {
+    id: String(row.id),
+    categoryId: text(row.categoryId) ?? text(row.category) ?? 'news',
+    title: text(row.title) ?? 'News',
+    byline: text(row.byline),
+    publishedAt: text(row.publishedAt) ?? text(row.createdAt) ?? new Date(0).toISOString(),
+    readingMinutes: typeof row.readingMinutes === 'number' ? row.readingMinutes : typeof row.readingTime === 'number' ? row.readingTime : undefined,
+    excerpt: text(row.excerpt) ?? text(row.summary),
+    body,
+    highlights: granted && Array.isArray(row.highlights) ? row.highlights.map(String) : undefined,
+    tags: Array.isArray(row.tags) ? row.tags.map(String) : undefined,
+    featured: Boolean(row.featured),
+    imageUrl: text(row.imageUrl) ?? text(row.heroImageUrl),
+    access,
+    imageTint: 'orange',
+  };
+}
+
+function toTopic(row: Record<string, unknown>): AwarenessTopic {
+  const schema = row.schema === 'list' || row.schema === 'article' ? row.schema : 'pairs';
+  const access = decision(row.access, text(row.commercialMode));
+  return {
+    id: String(row.id),
+    title: text(row.title) ?? 'Topic',
+    subtitle: text(row.summary) ?? text(row.subtitle),
+    kind: 'topic',
+    pricing: pricingOf(row),
+    clay: 'lavender',
+    icon: text(row.iconKey) ?? 'book',
+    imageUrl: text(row.imageUrl),
+    access,
+    schema,
+    summaryChips: Array.isArray(row.summaryChips) ? row.summaryChips.map(String) : undefined,
+    entries: access.state === 'granted'
+      ? asRows(row.entries).map(entry => ({
+          id: String(entry.id),
+          label: text(entry.label) ?? '',
+          value: text(entry.value) ?? text(entry.text) ?? '',
+          group: text(entry.group),
+          iconColor: text(entry.iconColor),
+        }))
+      : [],
+  };
+}
+
+function toFact(row: Record<string, unknown>): Fact {
+  const access = decision(row.access, text(row.commercialMode));
+  return {
+    id: String(row.id),
+    categoryId: text(row.categoryId) ?? 'facts',
+    text: text(row.text) ?? text(row.title) ?? '',
+    explanation: access.state === 'granted' ? text(row.explanation) : undefined,
+    reactionCount: typeof row.reactionCount === 'number' ? row.reactionCount : 0,
+    reacted: Boolean(row.reacted),
+    bookmarked: Boolean(row.bookmarked),
+    featured: Boolean(row.featured),
+    quizId: text(row.quizId) ?? text(row.relatedQuizId),
+    access,
+  };
+}
+
+function toInterviewQuestion(row: Record<string, unknown>): InterviewQuestion {
+  const access = decision(row.access, text(row.commercialMode));
+  return {
+    id: String(row.id),
+    categoryId: text(row.categoryId) ?? 'interview',
+    prompt: text(row.prompt) ?? text(row.question) ?? text(row.title) ?? '',
+    modelAnswer: access.state === 'granted' ? text(row.modelAnswer) ?? text(row.answer) : undefined,
+    access,
+  };
+}
+
+function toLiveClass(row: Record<string, unknown>): LiveClass {
+  const status = LIVE_STATUSES.has(row.status as LiveClass['status']) ? row.status as LiveClass['status'] : 'scheduled';
+  const instructor = row.instructor && typeof row.instructor === 'object' ? text((row.instructor as {name?: string}).name) : undefined;
+  return {
+    id: String(row.id),
+    courseId: text(row.courseId),
+    title: text(row.title) ?? 'Live class',
+    startsAt: text(row.startsAt) ?? text(row.startAt) ?? new Date().toISOString(),
+    endsAt: text(row.endsAt) ?? text(row.endAt) ?? text(row.startsAt) ?? new Date().toISOString(),
+    instructorName: text(row.instructorName) ?? instructor ?? 'Instructor',
+    status,
+    batch: text(row.batch) ?? text(row.batchName),
+    scheduleLabel: text(row.scheduleLabel),
+    startsInMinutes: typeof row.startsInMinutes === 'number' ? row.startsInMinutes : row.startsInMinutes === null ? null : undefined,
+    durationMinutes: typeof row.durationMinutes === 'number' ? row.durationMinutes : undefined,
+    durationLabel: text(row.durationLabel),
+    canSetReminder: typeof row.canSetReminder === 'boolean' ? row.canSetReminder : undefined,
+    viewerCount: typeof row.viewerCount === 'number' ? row.viewerCount : undefined,
+    recordingAvailable: Boolean(row.recordingAvailable),
+    reminderSet: Boolean(row.reminderSet),
+  };
+}
+
+function catalogCard(row: Record<string, unknown>, kind: CatalogItem['kind'], icon: string, clay: ClayVariantName): CatalogItem {
+  return {
+    id: String(row.id),
+    title: text(row.title) ?? text(row.name) ?? 'Untitled',
+    subtitle: text(row.summary) ?? text(row.subtitle) ?? text(row.description),
+    kind,
+    pricing: pricingOf(row),
+    clay,
+    icon: text(row.iconKey) ?? icon,
+    imageUrl: text(row.imageUrl) ?? text(row.coverImageUrl),
+    access: decision(row.access, text(row.commercialMode)),
+  };
+}
+
+function filterCatalog(items: CatalogItem[], query: {search?: string; pricing?: PricingFilter}): CatalogItem[] {
+  let next = items;
+  const term = query.search?.trim().toLocaleLowerCase();
+  if (term) next = next.filter(item => `${item.title} ${item.subtitle ?? ''}`.toLocaleLowerCase().includes(term));
+  if (query.pricing && query.pricing !== 'all') next = next.filter(item => item.pricing === query.pricing);
+  return next;
+}
+
+/** Query string the six explore catalogues send. See docs/handover. */
+function catalogParams(query: Pick<CatalogQuery, 'search' | 'pricing' | 'cursor'>) {
+  return {
+    ...(query.search?.trim() ? {search: query.search.trim()} : {}),
+    ...(query.pricing && query.pricing !== 'all' ? {pricing: query.pricing} : {}),
+    ...(query.cursor ? {cursor: query.cursor} : {}),
+  };
+}
+
+function asCatalogPage<T>(
+  payload: unknown,
+  map: (row: Record<string, unknown>) => T,
+): Page<T> | undefined {
+  if (Array.isArray(payload)) return pageOf(payload, map);
+  if (payload && typeof payload === 'object') {
+    const record = payload as {items?: unknown; data?: unknown; results?: unknown};
+    if (Array.isArray(record.items) || Array.isArray(record.data) || Array.isArray(record.results)) {
+      return pageOf(payload, map);
+    }
+  }
+  return undefined;
+}
+
+function finishCatalogPage(page: Page<CatalogItem>, query: CatalogQuery): Page<CatalogItem> {
+  if (page.nextCursor) return page;
+  const items = filterCatalog(page.items, query);
+  return {items, nextCursor: null, total: items.length};
+}
+
+function courseFromRow(row: Record<string, unknown>): Course {
+  return toCourse(row as unknown as ApiCourse);
+}
+
+function publishedCourses(courses: ApiCourse[]): Course[] {
+  return courses.filter(course => !isInternalTestCourse(course)).map(toCourse);
+}
+
+async function listCourses(query: CatalogQuery): Promise<Page<CatalogItem>> {
+  const payload = await getOptional<unknown>('/courses', catalogParams(query));
+  const page = payload ? asCatalogPage(payload, courseFromRow) : undefined;
+  if (page) {
+    const items = page.items.filter(item => !isInternalTestCourse(item));
+    return {...page, items, total: page.total && page.total >= page.items.length ? page.total - (page.items.length - items.length) : items.length};
+  }
+
+  // GET /courses is not on the learner API yet. Until the handover list exists,
+  // show featured courses from /home, or search hits when the learner typed a query.
+  let items: Course[];
+  if (query.search?.trim()) {
+    const result = await get<ApiSearch>('/search', {q: query.search.trim()});
+    items = publishedCourses(result.courses);
+  } else {
+    const home = await get<ApiHome>('/home');
+    items = publishedCourses(home.featuredCourses ?? []);
+  }
+  if (query.pricing && query.pricing !== 'all') {
+    items = items.filter(item => item.pricing === query.pricing);
+  }
+  return emptyPage(items);
+}
+
+async function listPublishedKind(
+  kind: 'exam' | 'news' | 'topic' | 'fact' | 'interview',
+  query: CatalogQuery,
+): Promise<Page<CatalogItem>> {
+  const params = catalogParams(query);
+  if (kind === 'exam') {
+    const payload = await getOptional<unknown>('/exams', params);
+    return payload ? asCatalogPage(payload, toExam) ?? emptyPage() : emptyPage();
+  }
+  if (kind === 'news') {
+    const categories = await getOptional<unknown>('/news/categories', params);
+    const page = categories
+      ? asCatalogPage(categories, row => catalogCard(row, 'news', 'news', 'orange'))
+      : undefined;
+    if (page) return page;
+    const articles = await getOptional<unknown>('/news', params);
+    const seen = new Set<string>();
+    const derived = articles
+      ? asRows(articles).flatMap(row => {
+          const id = text(row.categoryId) ?? text(row.category);
+          if (!id || seen.has(id)) return [];
+          seen.add(id);
+          return [catalogCard({...row, id, title: text(row.categoryTitle) ?? id}, 'news', 'news', 'orange')];
+        })
+      : [];
+    return emptyPage(derived);
+  }
+  if (kind === 'topic') {
+    const payload = await getOptional<unknown>('/awareness/topics', params);
+    return payload
+      ? asCatalogPage(payload, row => catalogCard(row, 'topic', 'book', 'lavender')) ?? emptyPage()
+      : emptyPage();
+  }
+  if (kind === 'fact') {
+    const categories = await getOptional<unknown>('/facts/categories', params);
+    const page = categories
+      ? asCatalogPage(categories, row => catalogCard(row, 'fact', 'bulb', 'green'))
+      : undefined;
+    if (page) return page;
+    const facts = await getOptional<unknown>('/facts', params);
+    const seen = new Set<string>();
+    const derived = facts
+      ? asRows(facts).flatMap(row => {
+          const id = text(row.categoryId);
+          if (!id || seen.has(id)) return [];
+          seen.add(id);
+          return [catalogCard({id, title: text(row.categoryTitle) ?? id}, 'fact', 'bulb', 'green')];
+        })
+      : [];
+    return emptyPage(derived);
+  }
+  const categories = await getOptional<unknown>('/interview/categories', params);
+  const page = categories
+    ? asCatalogPage(categories, row => catalogCard(row, 'interviewCategory', 'users', 'mint'))
+    : undefined;
+  if (page) return page;
+  const questions = await getOptional<unknown>('/interview/questions', params);
+  const seen = new Set<string>();
+  const derived = questions
+    ? asRows(questions).flatMap(row => {
+        const id = text(row.categoryId);
+        if (!id || seen.has(id)) return [];
+        seen.add(id);
+        return [catalogCard({id, title: text(row.categoryTitle) ?? id}, 'interviewCategory', 'users', 'mint')];
+      })
+    : [];
+  return emptyPage(derived);
+}
+
+async function publishedLiveClasses(fromIso?: string, toIso?: string): Promise<LiveClass[]> {
+  const now = Date.now();
+  const payload = await getOptional<unknown>('/live-classes', {
+    from: fromIso ?? new Date(now - 24 * 60 * 60 * 1000).toISOString(),
+    to: toIso ?? new Date(now + 14 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+  const ranged = payload ? asRows(payload).map(toLiveClass) : [];
+  if (ranged.length) return ranged;
+  const catalog = await getOptional<unknown>('/live-classes');
+  const all = catalog ? asRows(catalog).map(toLiveClass) : [];
+  return visibleLiveClasses(ranged, all, now);
+}
+
+async function lessonsForCourse(courseId: string): Promise<ApiLesson[]> {
+  try {
+    const lessons = await get<ApiLesson[]>(`/courses/${courseId}/lessons`);
+    return [...lessons].sort((a, b) => a.sortOrder - b.sortOrder);
+  } catch {
+    return [];
+  }
+}
+
+async function resumeFromEnrollments(): Promise<HomeDashboard['continueLearning']> {
+  try {
+    const rows = await get<ApiEnrollment[]>('/me/enrollments');
+    const cards = [];
+    for (const row of rows.filter(item => item.status === 'active').slice(0, 5)) {
+      const lessons = await lessonsForCourse(row.courseId);
+      const progress = progressFromEnrollment(row, lessons);
+      const current = lessons.find(lesson => lesson.id === progress.nextLessonId) ?? lessons[0];
+      if (!current) continue;
+      cards.push({
+        courseId: row.courseId,
+        lessonId: current.id,
+        title: row.course?.title || 'Course',
+        lessonLabel: current.title,
+        percent: progress.percent,
+      });
+    }
+    return cards;
+  } catch {
+    return [];
+  }
+}
+
+const NOTIFICATION_CATEGORIES = new Set<NotificationCategory>(['classes', 'tests', 'news', 'offers', 'system']);
+const NOTIFICATION_TARGETS = new Set<ContentKind>([
+  'course', 'lesson', 'test', 'news', 'fact', 'topic', 'interviewQuestion',
+  'interviewCategory', 'liveClass', 'document', 'exam', 'section',
+]);
+
+/** Set only after this account's inbox route is missing, so another learner still tries the API. */
+let localInboxAccount: string | null = null;
+
+function toNotification(row: Record<string, unknown>): NotificationItem {
+  const categoryText = text(row.category);
+  const category = categoryText && NOTIFICATION_CATEGORIES.has(categoryText as NotificationCategory)
+    ? categoryText as NotificationCategory
+    : 'system';
+  const targetRow = row.target && typeof row.target === 'object' ? row.target as Record<string, unknown> : undefined;
+  const kind = text(targetRow?.kind);
+  const targetId = text(targetRow?.id);
+  const source = row.source === 'admin' || row.source === 'automatic' ? row.source : undefined;
+  return {
+    id: text(row.id) ?? `notification-${text(row.createdAt) ?? 'item'}`,
+    title: text(row.title) ?? 'Notification',
+    body: text(row.body) ?? '',
+    createdAt: text(row.createdAt) ?? new Date().toISOString(),
+    read: Boolean(row.read),
+    category,
+    source,
+    priority: row.priority === 'high' ? 'high' : 'normal',
+    actionLabel: text(row.actionLabel),
+    target: kind && targetId && NOTIFICATION_TARGETS.has(kind as ContentKind)
+      ? {kind: kind as ContentKind, id: targetId}
+      : undefined,
+  };
+}
+
+async function learnerNotifications(cursor?: string, category?: string): Promise<Page<NotificationItem>> {
+  if (!tokenStore.getAccessToken()) {
+    return localNotificationPage(accountKey(), await publishedLiveClasses().catch(() => []), category);
+  }
+  const params: Record<string, string> = {};
+  if (cursor) params.cursor = cursor;
+  if (category && category !== 'all') params.category = category;
+  try {
+    const payload = await get<unknown>('/me/notifications', Object.keys(params).length ? params : undefined);
+    if (localInboxAccount === accountKey()) localInboxAccount = null;
+    return pageOf(payload, toNotification);
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) {
+      localInboxAccount = accountKey();
+      return localNotificationPage(accountKey(), await publishedLiveClasses().catch(() => []), category);
+    }
+    throw error;
+  }
+}
+
+async function markLearnerNotificationRead(id: string): Promise<void> {
+  if (id.startsWith('local-') || localInboxAccount === accountKey()) {
+    await markLocalNotificationRead(accountKey(), id);
+    return;
+  }
+  try {
+    await patch(`/me/notifications/${encodeURIComponent(id)}`, {read: true});
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) {
+      localInboxAccount = accountKey();
+      await markLocalNotificationRead(accountKey(), id);
+      return;
+    }
+    throw error;
+  }
+}
+
+async function clearLearnerNotifications(): Promise<{mode: 'archive' | 'mark_read'}> {
+  if (localInboxAccount === accountKey()) {
+    await markAllLocalNotificationsRead(accountKey(), await publishedLiveClasses().catch(() => []));
+    return {mode: 'mark_read'};
+  }
+  try {
+    const result = await post<{mode?: string} | undefined>('/me/notifications/clear');
+    return {mode: result && typeof result === 'object' && result.mode === 'archive' ? 'archive' : 'mark_read'};
+  } catch (error) {
+    if (isAppError(error) && error.httpStatus === 404) {
+      localInboxAccount = accountKey();
+      await markAllLocalNotificationsRead(accountKey(), await publishedLiveClasses().catch(() => []));
+      return {mode: 'mark_read'};
+    }
+    throw error;
+  }
+}
+
+const CHECKOUT_METHODS: Order['quote']['methods'] = ['upi', 'card', 'netbanking', 'wallet'];
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+}
+
+function numberField(row: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
+  }
+  return undefined;
+}
+
+function providerOrderId(row: Record<string, unknown>): string | undefined {
+  const candidates = [row.orderId, row.order_id, row.razorpayOrderId, row.razorpay_order_id, row.id]
+    .map(text)
+    .filter((value): value is string => Boolean(value));
+  return candidates.find(id => id.startsWith('order_')) ?? candidates[0];
+}
+
+function paymentStatus(value: unknown): Order['status'] | undefined {
+  return paymentRecordStatus(value);
+}
+
+function checkoutOrder(input: {
+  id: string;
+  productId: string;
+  title?: string;
+  amountMinor: number;
+  currency: string;
+  method?: Order['method'];
+  status: Order['status'];
+  paidAt?: string;
+  receiptId?: string;
+  providerKeyId?: string;
+}): Order {
+  const amount = Math.max(0, Math.round(input.amountMinor));
+  return {
+    id: input.id,
+    productId: input.productId,
+    title: input.title?.trim() || 'Enrollment',
+    quote: {
+      mrpMinor: amount,
+      discountMinor: 0,
+      totalMinor: amount,
+      currency: input.currency || 'INR',
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      methods: [...CHECKOUT_METHODS],
+    },
+    status: input.status,
+    method: input.method,
+    paidAt: input.paidAt,
+    receiptId: input.receiptId,
+    providerKeyId: input.providerKeyId,
+  };
+}
+
+function orderFromVerify(raw: unknown, orderId: string, courseId?: string): Order {
+  const row = asRecord(raw) ?? {};
+  const nested = asRecord(row.order) ?? asRecord(row.payment) ?? row;
+  const explicit = paymentStatus(nested.status) ?? paymentStatus(row.status);
+  const failed = row.success === false || row.verified === false || row.paid === false;
+  const status = explicit ?? (failed ? 'failed' : 'unknownNeedsRecheck');
+  return checkoutOrder({
+    id: providerOrderId(nested) || providerOrderId(row) || orderId,
+    productId: text(row.courseId) || text(nested.courseId) || text(row.productId) || courseId || '',
+    title: text(row.title) || text(nested.title),
+    amountMinor: numberField(nested, ['amount', 'amountMinor', 'totalMinor']) ?? numberField(row, ['amount', 'amountMinor']) ?? 0,
+    currency: text(nested.currency) || text(row.currency) || 'INR',
+    status,
+    paidAt: status === 'succeeded' ? text(row.paidAt) || text(nested.paidAt) || new Date().toISOString() : undefined,
+    receiptId: text(row.receiptId) || text(row.razorpay_payment_id) || text(nested.razorpay_payment_id),
+  });
+}
+
+async function unreadNotificationCount(): Promise<number> {
+  if (!tokenStore.getAccessToken()) return 0;
+  try {
+    const page = await learnerNotifications();
+    return page.items.filter(item => !item.read).length;
+  } catch {
+    return 0;
+  }
+}
+
 export function createHttpRepositories(): Repositories {
   const fetchProfile = async () => toProfile(await get<ApiLearner>('/me'));
+  const notedOrders = new Map<string, Order>();
+  const rememberOrder = (order: Order) => {
+    if (order.id) notedOrders.set(order.id, order);
+  };
 
   return {
     auth: {
       login: async (identifier, password) => {
-        if (!identifier.includes('@')) {
-          return unavailable('Phone-number sign-in');
-        }
-        return toSession(await post<ApiAuth>('/auth/login', {email: identifier.toLowerCase(), password}));
+        const phone = loginPhone(identifier);
+        const body = phone
+          ? {phone, password}
+          : {email: identifier.trim().toLowerCase(), password};
+        return toSession(await post<ApiAuth>('/auth/login', body));
       },
       register: async input => {
         const split = splitName(input.fullName ?? '');
@@ -414,15 +1230,62 @@ export function createHttpRepositories(): Repositories {
           email: input.email.toLowerCase(),
           password: input.password,
           ...(normalizePhone(input.phone) ? {phone: normalizePhone(input.phone)} : {}),
-          ...(input.city?.trim() ? {city: input.city.trim()} : {}),
+          ...compactAddress(input),
         };
-        return toSession(await post<ApiAuth>('/auth/register', body));
+        const started = await post<ApiAuth & {challengeId?: string}>('/auth/register', body);
+        const challengeId = started.challengeId?.trim();
+        if (challengeId) return {challengeId};
+        if (started.accessToken) {
+          return Promise.reject({
+            code: 'verification_required',
+            message: 'A verification code has to be sent to your email before the account is created. This server did not send one.',
+            retryable: false,
+          });
+        }
+        return unavailable('Email verification');
       },
-      verifyChallenge: () => unavailable('Contact verification'),
-      forgotPassword: () => unavailable('Password recovery'),
-      verifyResetCode: () => unavailable('Password recovery'),
-      resetPassword: () => unavailable('Password recovery'),
-      exchangeGoogle: () => unavailable('Google sign-in'),
+      verifyChallenge: async (challengeId, code) =>
+        toSession(await post<ApiAuth>(`/auth/challenges/${encodeURIComponent(challengeId)}/verify`, {code})),
+      forgotPassword: async identifier => {
+        const email = identifier.trim().toLowerCase();
+        const started = await post<{challengeId?: string | null; message?: string}>('/auth/password/forgot', {email});
+        const challengeId = typeof started?.challengeId === 'string' ? started.challengeId.trim() : '';
+        if (!challengeId) {
+          return Promise.reject({
+            code: 'reset_not_started',
+            message: 'No reset code was sent for this email. Use the address on your account and try again.',
+            retryable: false,
+          });
+        }
+        return {challengeId};
+      },
+      verifyResetCode: async (challengeId, code) => {
+        const raw = await post<unknown>('/auth/password/verify', {challengeId, code});
+        const row = asRecord(raw) ?? {};
+        const resetToken = (text(row.resetToken) || text(row.token) || '').trim();
+        if (!resetToken) {
+          return Promise.reject({
+            code: 'reset_token_missing',
+            message: 'That code did not return a reset token. Request a new code and try again.',
+            retryable: false,
+          });
+        }
+        return {resetToken};
+      },
+      resetPassword: async (resetToken, password) => {
+        await post('/auth/password/reset', {resetToken, newPassword: password});
+      },
+      exchangeGoogle: async (idToken, address) => {
+        try {
+          const auth = await post<ApiAuth>('/auth/google', {idToken, ...compactAddress(address)});
+          return {...toSession(auth), isNewUser: auth.isNewUser === true};
+        } catch (error) {
+          if (isAppError(error) && (error.httpStatus === 404 || error.httpStatus === 405)) {
+            return unavailable('Google sign-in');
+          }
+          throw error;
+        }
+      },
       logout: async () => {
         try {
           await post('/auth/logout');
@@ -433,10 +1296,11 @@ export function createHttpRepositories(): Repositories {
       me: fetchProfile,
       updateMe: async profile => {
         const name = profile.fullName ? splitName(profile.fullName) : {};
+        const addressKeys = ['addressLine1', 'addressLine2', 'city', 'state', 'pincode', 'placeId', 'latitude', 'longitude'] as const;
         const body = {
           ...name,
           ...(profile.phone !== undefined ? {phone: normalizePhone(profile.phone)} : {}),
-          ...(profile.city !== undefined ? {city: profile.city} : {}),
+          ...(addressKeys.some(key => profile[key] !== undefined) ? compactAddress(profile) : {}),
           appVersion: appConfig.versionName,
         };
         return toProfile(await patch<ApiLearner>('/me', body));
@@ -445,65 +1309,57 @@ export function createHttpRepositories(): Repositories {
     catalog: {
       home: async () => {
         const signedIn = Boolean(tokenStore.getAccessToken());
-        const home = await get<ApiHome>(signedIn ? '/home/me' : '/home');
+        const [home, liveClasses, unreadNotifications] = await Promise.all([
+          get<ApiHome>(signedIn ? '/home/me' : '/home'),
+          publishedLiveClasses().catch(() => [] as LiveClass[]),
+          signedIn ? unreadNotificationCount() : Promise.resolve(0),
+        ]);
         return {
           greetingName: undefined,
-          banners: home.banners.map(banner => ({
-            id: banner.id,
-            title: banner.title,
-            subtitle: banner.subtitle || undefined,
-            ctaLabel: banner.ctaLabel || undefined,
-            imageUrl: banner.imageUrl || undefined,
-            targetKind: banner.targetKind || undefined,
-            targetId: banner.targetRef || undefined,
-            themeKey: banner.themeKey || undefined,
-          })),
+          banners: home.banners.flatMap(banner => {
+            const imageUrl = banner.imageUrl || undefined;
+            if (!imageUrl) return [];
+            return [{
+              id: banner.id,
+              title: banner.title,
+              imageUrl,
+              altText: banner.altText || undefined,
+              targetKind: banner.targetKind || undefined,
+              targetId: banner.targetRef || undefined,
+              themeKey: banner.themeKey || undefined,
+            }];
+          }),
           sections: home.sections.map(toSection),
-          featuredCourses: home.featuredCourses.map(toCourse),
-          liveClasses: [],
-          continueLearning: home.continuing.slice(0, 5).map(current => ({
-            courseId: current.courseId,
-            lessonId: current.lessonId,
-            title: current.courseTitle,
-            lessonLabel: current.title,
-            percent: current.progressPct,
-          })),
-          unreadNotifications: 0,
+          featuredCourses: publishedCourses(home.featuredCourses),
+          liveClasses,
+          continueLearning: home.continuing.length
+            ? home.continuing.slice(0, 5).map(current => ({
+                courseId: current.courseId,
+                lessonId: current.lessonId,
+                title: current.courseTitle,
+                lessonLabel: current.title,
+                percent: current.progressPct,
+              }))
+            : signedIn
+              ? await resumeFromEnrollments()
+              : [],
+          unreadNotifications,
         };
       },
       list: async query => {
-        let items: CatalogItem[];
-        if (query.kind === 'course') {
-          if (query.search?.trim()) {
-            const result = await get<ApiSearch>('/search', {q: query.search.trim()});
-            items = result.courses.map(toCourse);
-          } else {
-            const home = await get<ApiHome>('/home');
-            items = home.featuredCourses.map(toCourse);
-          }
-        } else {
-          const sections = await get<ApiSection[]>('/categories');
-          items = sections.map(toSection).filter(item => item.kind === query.kind);
-          if (query.search?.trim()) {
-            const term = query.search.trim().toLocaleLowerCase();
-            items = items.filter(item => `${item.title} ${item.subtitle ?? ''}`.toLocaleLowerCase().includes(term));
-          }
-        }
-        if (query.pricing && query.pricing !== 'all') {
-          items = items.filter(item => item.pricing === query.pricing);
-        }
-        return emptyPage(items);
+        if (query.kind === 'course') return listCourses(query);
+        return finishCatalogPage(await listPublishedKind(query.kind, query), query);
       },
       course: async id => {
         const path = tokenStore.getAccessToken() ? `/courses/${id}/access` : `/courses/${id}`;
         return toCourse(await get<ApiCourse>(path));
       },
-      exam: () => unavailable('Exam preparation'),
+      exam: async id => toExam(await get<Record<string, unknown>>(`/exams/${id}`)),
       search: async (q, type) => {
         if (!q.trim()) return emptyPage([]);
         if (type && type !== 'COURSE') return emptyPage([]);
         const result = await get<ApiSearch>('/search', {q: q.trim()});
-        const courses = result.courses.map(course => ({...toCourse(course), badge: 'COURSE'}));
+        const courses = publishedCourses(result.courses).map(course => ({...course, badge: 'COURSE'}));
         const lessons = type
           ? []
           : result.lessons.map(lesson => ({
@@ -525,17 +1381,16 @@ export function createHttpRepositories(): Repositories {
     learning: {
       enrollments: async () => {
         const rows = await get<ApiEnrollment[]>('/me/enrollments');
-        return rows.filter(row => row.status === 'active').map<Enrollment>(row => ({
-          id: row.id,
-          courseId: row.courseId,
-          kind: 'standard',
-          purchasedAt: row.startsAt,
-          progress: {
-            completedLessons: 0,
-            totalLessons: 0,
-            percent: 0,
-            updatedAt: row.updatedAt || row.startsAt || new Date(0).toISOString(),
-          },
+        const active = rows.filter(row => row.status === 'active');
+        return Promise.all(active.map(async row => {
+          const lessons = await lessonsForCourse(row.courseId);
+          return {
+            id: row.id,
+            courseId: row.courseId,
+            kind: 'standard' as const,
+            purchasedAt: row.startsAt,
+            progress: progressFromEnrollment(row, lessons),
+          };
         }));
       },
       enroll: async courseId => {
@@ -600,49 +1455,231 @@ export function createHttpRepositories(): Repositories {
           : current.filter(item => item.ref.kind !== ref.kind || item.ref.id !== ref.id);
         await setAccountScoped(account, 'bookmarks', next);
       },
-      semesters: () => Promise.resolve([]),
+      semesters: () => unavailable('Semester learning'),
       semester: () => unavailable('Semester learning'),
       submitReview: () => unavailable('Semester review'),
       project: () => unavailable('Projects'),
       submitProject: () => unavailable('Projects'),
     },
     assessments: {
-      tests: () => Promise.resolve([]),
-      test: () => unavailable('Learner tests'),
-      startAttempt: () => unavailable('Learner tests'),
-      attempt: () => unavailable('Learner tests'),
-      saveAnswer: () => unavailable('Learner tests'),
-      submit: () => unavailable('Learner tests'),
-      result: () => unavailable('Learner tests'),
-      history: () => Promise.resolve([]),
-      dailyPractice: () => unavailable('Daily practice'),
+      tests: async examId => {
+        try {
+          const payload = await get<unknown>('/tests', examId ? {examId} : undefined);
+          return asRows(payload).map(toTest);
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Tests');
+          throw error;
+        }
+      },
+      test: async id => toTest(await get<Record<string, unknown>>(`/tests/${id}`)),
+      startAttempt: async testId => {
+        try {
+          return toAttempt(await post<Record<string, unknown>>(`/tests/${testId}/attempts`, {}));
+        } catch (error) {
+          // Production still has no learner attempt routes (POST 404). Be honest instead of "retry".
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Starting this test');
+          throw error;
+        }
+      },
+      attempt: async id => {
+        try {
+          return toAttempt(await get<Record<string, unknown>>(`/attempts/${id}`));
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('This attempt');
+          throw error;
+        }
+      },
+      saveAnswer: async (attemptId, questionId, optionId, revision) => {
+        try {
+          return await put<{revision: number}>(`/attempts/${attemptId}/answers/${questionId}`, {optionId, revision});
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Saving answers');
+          throw error;
+        }
+      },
+      submit: async (attemptId, revision) => {
+        try {
+          return toResult(await post<Record<string, unknown>>(`/attempts/${attemptId}/submit`, {revision}));
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Submitting this test');
+          throw error;
+        }
+      },
+      result: async attemptId => {
+        try {
+          const row = await get<Record<string, unknown>>(`/attempts/${attemptId}/result`);
+          if (!isPublishedResult(row)) return unavailable('Test results');
+          return toResult(row);
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Test results');
+          throw error;
+        }
+      },
+      history: async () => {
+        if (!tokenStore.getAccessToken()) return [];
+        try {
+          const payload = await get<unknown>('/me/attempts');
+          return asRows(payload).filter(isPublishedResult).map(toResult);
+        } catch (error) {
+          if (isAppError(error) && error.httpStatus === 404) return unavailable('Test results');
+          throw error;
+        }
+      },
+      dailyPractice: async kind => {
+        try {
+          const row = await get<{testId?: string}>('/practice/daily', {kind});
+          if (row?.testId) return {testId: row.testId};
+        } catch (error) {
+          if (!(isAppError(error) && error.httpStatus === 404)) throw error;
+        }
+        if (kind === 'facts') {
+          const payload = await getOptional<unknown>('/facts');
+          const rows = payload ? asRows(payload) : [];
+          const featured = rows.find(row => row.featured) ?? rows[0];
+          const quizId = featured ? text(featured.quizId) ?? text(featured.relatedQuizId) : undefined;
+          if (quizId) return {testId: quizId};
+        }
+        return unavailable('Daily practice');
+      },
     },
     content: {
-      news: () => Promise.resolve(emptyPage()),
-      article: () => unavailable('Learner news'),
-      topic: () => unavailable('General awareness'),
-      facts: () => Promise.resolve(emptyPage()),
-      fact: () => unavailable('Facts'),
-      reactFact: () => unavailable('Fact reactions'),
-      interviewQuestions: () => Promise.resolve([]),
-      interviewQuestion: () => unavailable('Interview preparation'),
+      news: async (categoryId, cursor) => {
+        const payload = await getOptional<unknown>('/news', {categoryId, cursor});
+        if (!payload) return emptyPage();
+        const page = pageOf(payload, toArticle);
+        const items = page.items.filter(item => !isInternalTestTitle(item.title));
+        return {...page, items, total: items.length};
+      },
+      article: async id => toArticle(await get<Record<string, unknown>>(`/news/${id}`)),
+      topic: async id => toTopic(await get<Record<string, unknown>>(`/awareness/topics/${id}`)),
+      facts: async (categoryId, cursor) => {
+        const payload = await getOptional<unknown>('/facts', {categoryId, cursor});
+        return payload ? pageOf(payload, toFact) : emptyPage();
+      },
+      fact: async id => toFact(await get<Record<string, unknown>>(`/facts/${id}`)),
+      reactFact: async (id, reacted) => toFact(await put<Record<string, unknown>>(`/facts/${id}/reaction`, {reacted})),
+      interviewQuestions: async categoryId => {
+        const payload = await getOptional<unknown>('/interview/questions', categoryId ? {categoryId} : undefined);
+        return payload ? asRows(payload).map(toInterviewQuestion) : [];
+      },
+      interviewQuestion: async id => toInterviewQuestion(await get<Record<string, unknown>>(`/interview/questions/${id}`)),
     },
     live: {
-      schedule: () => Promise.resolve([]),
-      get: () => unavailable('Live classes'),
-      join: () => unavailable('Live classes'),
-      setHand: () => unavailable('Live classes'),
-      setReminder: () => unavailable('Live classes'),
-      sendChat: () => unavailable('Live chat'),
-      chatHistory: () => Promise.resolve([]),
+      schedule: (fromIso, toIso) => publishedLiveClasses(fromIso, toIso),
+      get: async id => toLiveClass(await get<Record<string, unknown>>(`/live-classes/${id}`)),
+      join: async id => {
+        try {
+          const row = await post<{playbackUrl?: string; chatAvailable?: boolean; expiresAt?: string}>(`/live-classes/${id}/join`);
+          // Chat stays off until join, schedule, and the classroom provider are stable.
+          return {playbackUrl: row.playbackUrl, chatAvailable: false, expiresAt: row.expiresAt};
+        } catch (error) {
+          if (isAppError(error) && (error.httpStatus === 404 || error.httpStatus === 409)) {
+            return unavailable('Joining this class');
+          }
+          throw error;
+        }
+      },
+      setHand: (id, raised) => put<{raised: boolean}>(`/live-classes/${id}/hand`, {raised}),
+      setReminder: (id, enabled) => put(`/live-classes/${id}/reminder`, {enabled}).then(() => undefined),
+      sendChat: (id, body, clientId) => post(`/live-classes/${id}/chat`, {body, clientId}),
+      chatHistory: async id => {
+        const payload = await getOptional<unknown>(`/live-classes/${id}/chat`);
+        return payload
+          ? asRows(payload).map(row => ({
+              id: String(row.id),
+              body: text(row.body) ?? '',
+              at: text(row.at) ?? text(row.createdAt) ?? new Date().toISOString(),
+              mine: Boolean(row.mine),
+              senderName: text(row.senderName),
+              faculty: Boolean(row.faculty),
+            }))
+          : [];
+      },
     },
     commerce: {
-      restore: () => unavailable('Purchases'),
-      quote: () => unavailable('Purchases'),
-      createOrder: () => unavailable('Purchases'),
-      getOrder: () => unavailable('Purchases'),
-      verify: () => unavailable('Purchases'),
-      history: () => Promise.resolve([]),
+      restore: purchases => post<Order[]>('/payments/restore', {provider: 'play_billing', purchases}),
+      paymentConfig: async () => {
+        const row = await get<{configured?: boolean; keyId?: string | null; provider?: string | null}>('/payments/config');
+        const keyId = row.keyId?.trim() || undefined;
+        return {
+          configured: row.configured !== false && Boolean(keyId),
+          keyId,
+          provider: row.provider?.trim() || undefined,
+        };
+      },
+      quote: async (productId, coupon) => {
+        const code = coupon?.trim().toUpperCase();
+        const raw = await post<Partial<Order['quote']> & {productId?: string; title?: string}>(
+          '/checkout/quote',
+          {productId, ...(code ? {coupon: code} : {})},
+        );
+        return normalizeCheckoutQuote(raw, productId);
+      },
+      createOrder: async (productId, coupon, idempotencyKey, method, charge) => {
+        const courseId = charge?.courseId || productId;
+        const amountMinor = charge?.amountMinor;
+        if (typeof amountMinor !== 'number' || !Number.isFinite(amountMinor) || amountMinor < 0) {
+          throw new Error('This purchase is unavailable.');
+        }
+        const code = coupon?.trim().toUpperCase();
+        const body: Record<string, unknown> = {
+          amount: Math.round(amountMinor),
+          currency: charge?.currency || 'INR',
+          courseId,
+        };
+        if (code) body.coupon = code;
+        if (method) body.method = method;
+        const headers = idempotencyKey ? {'Idempotency-Key': idempotencyKey} : undefined;
+        const created = await post<Record<string, unknown>>('/payments/create-order', body, headers);
+        const serverStatus = paymentStatus(created.status);
+        const amount = numberField(created, ['amount', 'amountMinor']) ?? Math.round(amountMinor);
+        const id = serverStatus === 'succeeded'
+          ? text(created.id) || text(created.instituteOrderId) || providerOrderId(created)
+          : providerOrderId(created);
+        if (!id || (serverStatus !== 'succeeded' && !id.startsWith('order_'))) {
+          throw new Error('Payment could not be started.');
+        }
+        const order = checkoutOrder({
+          id,
+          productId: text(created.courseId) || courseId,
+          amountMinor: amount,
+          currency: text(created.currency) || charge?.currency || 'INR',
+          method,
+          status: serverStatus === 'succeeded' ? 'succeeded' : 'awaitingProvider',
+          paidAt: serverStatus === 'succeeded' ? text(created.paidAt) || new Date().toISOString() : undefined,
+          receiptId: text(created.receipt) || text(created.instituteOrderId),
+          providerKeyId: text(created.key_id) || text(created.keyId),
+        });
+        rememberOrder(order);
+        return order;
+      },
+      getOrder: async id => {
+        try {
+          const order = await get<Order>(`/orders/${id}`);
+          rememberOrder(order);
+          return order;
+        } catch (error) {
+          const known = notedOrders.get(id);
+          if (known && isAppError(error) && error.httpStatus === 404) return known;
+          throw error;
+        }
+      },
+      noteOrder: rememberOrder,
+      verify: async (orderId, providerPayload) => {
+        const courseId = typeof providerPayload?.courseId === 'string' ? providerPayload.courseId : undefined;
+        const payload = {
+          orderId,
+          razorpay_order_id: providerPayload?.razorpay_order_id,
+          razorpay_payment_id: providerPayload?.razorpay_payment_id,
+          razorpay_signature: providerPayload?.razorpay_signature,
+        };
+        const raw = await post<unknown>('/payments/verify-payment', payload);
+        const order = orderFromVerify(raw, orderId, courseId);
+        rememberOrder(order);
+        if (order.id !== orderId) notedOrders.set(orderId, order);
+        return order;
+      },
+      history: () => get<Order[]>('/me/orders'),
       entitlements: async () => {
         const rows = await get<Array<{courseId?: string | null; scopeRef?: string; state: string; canDownload: boolean; canPreview: boolean; endsAt?: string | null}>>('/me/entitlements');
         return rows.map(row => ({
@@ -659,11 +1696,38 @@ export function createHttpRepositories(): Repositories {
     },
     account: {
       requestDeletion: () => unavailable('Account deletion'),
-      notifications: () => Promise.resolve(emptyPage()),
-      markRead: async () => undefined,
-      clearAll: async () => ({mode: 'mark_read'}),
-      registerPushDevice: async () => undefined,
-      unregisterPushDevice: async () => undefined,
+      notifications: (cursor, category) => learnerNotifications(cursor, category),
+      markRead: id => markLearnerNotificationRead(id),
+      clearAll: () => clearLearnerNotifications(),
+      registerPushDevice: async device => {
+        const token = device.token?.trim() ?? '';
+        if (token.length < 8) return;
+        if (tokenStore.getAccessToken()) {
+          await put('/me/push-devices/current', {
+            token,
+            platform: 'android',
+            notifClasses: device.notifClasses !== false,
+            notifTests: device.notifTests !== false,
+            notifNews: device.notifNews !== false,
+            notifOffers: device.notifOffers !== false,
+          });
+          return;
+        }
+        await put('/push-devices/guest', {
+          token,
+          platform: 'android',
+          ...(device.installationId ? {installationId: device.installationId} : {}),
+          notifNews: device.notifNews !== false,
+        });
+      },
+      unregisterPushDevice: async token => {
+        const value = token.trim();
+        if (tokenStore.getAccessToken()) {
+          await post('/me/push-devices/unregister', value.length >= 8 ? {token: value} : {});
+          return;
+        }
+        if (value.length >= 8) await post('/push-devices/guest/unregister', {token: value});
+      },
       documents: async kind => {
         const [rows, profile] = await Promise.all([
           get<ApiDocument[]>('/me/documents'),
@@ -695,9 +1759,14 @@ export function createHttpRepositories(): Repositories {
               status: auth.playback.status,
             }
           : null;
+        const deliveryUrl = auth.delivery?.url ?? '';
+        const playbackUrl = auth.playback?.url;
+        if (!deliveryUrl && !(auth.kind === 'video' && playbackUrl)) {
+          throw new Error('This file cannot be downloaded yet. The server confirmed access but did not send the file.');
+        }
         const mapped = {
           resourceId: auth.resourceId,
-          url: auth.delivery?.url ?? '',
+          url: deliveryUrl,
           expiresAt: auth.delivery?.expiresAt ?? auth.offlineAuthorization?.validUntil ?? new Date(0).toISOString(),
           offlineUntil: auth.offlineAuthorization?.validUntil,
           sha256: auth.delivery?.integrity?.hash,
@@ -723,7 +1792,7 @@ export function createHttpRepositories(): Repositories {
         if (crypto.status !== 'configured' && crypto.status !== 'using_dev_fallback') {
           throw new Error('Offline authorization is not configured.');
         }
-        if (mapped.kind === 'video' && mapped.playback?.url && mapped.playback.type !== 'mux_hls' && mapped.playback.type !== 'cloudinary_hls') {
+        if (mapped.kind === 'video' && mapped.playback?.url && !playableStream(mapped.playback)) {
           throw new Error('This video cannot be played inside the app.');
         }
         return mapped;
@@ -754,8 +1823,22 @@ export function createHttpRepositories(): Repositories {
           progress: row.available ? 1 : 0,
         }));
       },
-      support: () => unavailable('Support content'),
-      legal: () => unavailable('Legal content'),
+      support: async () => {
+        const remote = await getOptional<{faqs?: {q?: string; a?: string}[]; email?: string; phone?: string}>('/support');
+        const faqs = (remote?.faqs ?? [])
+          .map(item => ({q: item.q?.trim() ?? '', a: item.a?.trim() ?? ''}))
+          .filter(item => item.q && item.a);
+        if (faqs.length) return {faqs, email: remote?.email, phone: remote?.phone};
+        return STATIC_SUPPORT;
+      },
+      legal: async slug => {
+        const row = await get<{title?: string; body?: string | string[]}>(`/legal/${encodeURIComponent(slug)}`);
+        const body = Array.isArray(row.body)
+          ? row.body.filter((part): part is string => typeof part === 'string' && part.trim().length > 0).join('\n\n')
+          : (row.body ?? '').trim();
+        const fallback = slug === 'privacy' ? 'Privacy policy' : slug === 'terms' ? 'Terms of use' : 'Legal';
+        return {title: row.title?.trim() || fallback, body};
+      },
     },
   };
 }

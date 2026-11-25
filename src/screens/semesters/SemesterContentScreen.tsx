@@ -2,6 +2,7 @@ import React from 'react';
 import {ScrollView} from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useQuery} from '@tanstack/react-query';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {useRepositories} from '../../core/di';
 import {queryKeys} from '../../core/query';
 import {accountKey} from '../../core/session';
@@ -27,7 +28,12 @@ export function SemesterContentScreen() {
   return (
     <Screen padded={false} pullGestureHandlers={pullRefresh.gestureHandlers}>
       <DetailHeader title={data.data?.title ?? 'Semester'} onBack={() => navigation.goBack()} />
-      {data.isError ? <ErrorState message="This semester is not available." onRetry={() => data.refetch()} /> : null}
+      {data.isError ? (
+        <ErrorState
+          message={isFeatureUnavailable(data.error) ? 'Semester learning is not available in the app yet.' : 'This semester is not available.'}
+          onRetry={isFeatureUnavailable(data.error) ? undefined : () => data.refetch()}
+        />
+      ) : null}
       <ScrollView {...pullRefresh.scrollProps} contentContainerStyle={styles.page}>
         {data.data?.lessons.map(lesson => (
           <ClayCard key={lesson.id} variant="white" onPress={() => navigation.navigate('LessonPlayer', {courseId: lesson.courseId, lessonId: lesson.id, enrollmentId})}>

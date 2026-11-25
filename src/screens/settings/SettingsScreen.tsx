@@ -17,6 +17,7 @@ import {useAsyncAction} from '../../core/useAsyncAction';
 import {brand, clay, colors} from '../../theme';
 import {useTheme} from '../../theme/ThemeProvider';
 import {AppText, ClayToggle, SearchInput} from '../../components/ui';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Icon, type IconName} from '../../assets/icons';
 import {IconButton} from '../../components/ui/Clay';
@@ -51,7 +52,6 @@ type RowTone = {
 
 const TONE = {
   blue: {get bg() { return colors.pastel.blue; }, get icon() { return clay.blue.icon; }},
-  yellow: {get bg() { return colors.pastel.yellow; }, get icon() { return clay.yellow.icon; }},
   purple: {get bg() { return colors.pastel.purple; }, get icon() { return clay.purple.icon; }},
   mint: {get bg() { return colors.pastel.mint; }, get icon() { return clay.mint.icon; }},
   orange: {get bg() { return colors.pastel.orange; }, get icon() { return clay.orange.icon; }},
@@ -128,7 +128,6 @@ export function SettingsScreen() {
 
   const rows = {
     edit: matchesSettingsQuery(query, t('editProfile'), editSubtitle),
-    subscription: matchesSettingsQuery(query, t('manageSubscription'), t('freePlan')),
     payments: matchesSettingsQuery(query, t('paymentHistory'), paymentSubtitle),
     wifi: matchesSettingsQuery(query, t('wifiOnly'), t('wifiOnlyHint')),
     quality: matchesSettingsQuery(query, t('videoQuality'), qualitySubtitle),
@@ -144,7 +143,7 @@ export function SettingsScreen() {
     logout: matchesSettingsQuery(query, t('logout'), t('login')),
     delete: matchesSettingsQuery(query, t('deleteAccount')),
   };
-  const showAccount = signedIn && (rows.edit || rows.subscription || rows.payments);
+  const showAccount = signedIn && (rows.edit || rows.payments);
   const showLearning = rows.wifi || rows.quality || rows.reminder || rows.focus || rows.freeze;
   const showApp = rows.language || rows.dark || rows.notif || rows.help || rows.about || rows.privacy;
   const noResults = Boolean(query.trim()) && !showAccount && !showLearning && !showApp && !rows.logout && !rows.delete;
@@ -166,7 +165,7 @@ export function SettingsScreen() {
           />
         }
       />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={styles.page}>
         {searching ? (
           <View style={styles.searchWrap}>
             <SearchInput
@@ -201,15 +200,6 @@ export function SettingsScreen() {
                   title={t('editProfile')}
                   subtitle={editSubtitle}
                   onPress={() => navigation.navigate('EditProfile')}
-                />
-              ) : null}
-              {rows.subscription ? (
-                <SettingsRow
-                  icon="crown"
-                  tone={TONE.yellow}
-                  title={t('manageSubscription')}
-                  subtitle={t('freePlan')}
-                  onPress={showLearnerUnavailable}
                 />
               ) : null}
               {rows.payments ? (
@@ -404,7 +394,7 @@ export function SettingsScreen() {
           ) : null}
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <OptionSheet
         visible={sheet === 'quality'}

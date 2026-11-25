@@ -22,6 +22,11 @@ import {
   useSessionStore,
 } from '../../core/session';
 import { getAccountScoped, setAccountScoped } from '../../core/storage';
+import {formatLearningTime} from '../../features/catalog/courseCopy';
+import {coursePriceHeadline, coursePriceLabel} from '../../features/catalog/coursePrice';
+import {pickLessonToOpen} from '../../features/catalog/pickLessonToOpen';
+import {useEnrolledCourseIds} from '../../features/catalog/useEnrolledCourseIds';
+import {payToEnrolCue, promptPayToEnrol} from '../../features/catalog/payToEnrol';
 import { colors, gradients, radius, space } from '../../theme';
 import {
   AccessBadge,
@@ -52,7 +57,8 @@ export function CourseDetailScreen() {
   const repos = useRepositories();
   const sessionStatus = useSessionStore(state => state.status);
   const userKey = accountKey();
-  const [tab, setTab] = useState<CourseTab>('lessons');
+  const [tab, setTab] = useState<CourseTab>('overview');
+  const choseTab = React.useRef(false);
   const [showAllLessons, setShowAllLessons] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [following, setFollowing] = useState(false);
@@ -71,11 +77,27 @@ export function CourseDetailScreen() {
     enabled: sessionStatus === 'authenticated',
   });
   const data = course.data;
+  const {ids: enrolledIds, refetch: refetchEnrollments} = useEnrolledCourseIds();
+  const alreadyEnrolled = Boolean(data?.enrolled || enrolledIds.has(courseId));
+  const needsEntitlement = Boolean(
+    data &&
+      !alreadyEnrolled &&
+      (data.access.reason === 'purchase_required' ||
+        (data.pricing === 'paid' &&
+          !data.purchased &&
+          data.access.state !== 'granted')),
+  );
+  const pricedCourse = data ? {...data, enrolled: alreadyEnrolled} : undefined;
   const bookmarked = Boolean(
     bookmarks.data?.some(
       item => item.ref.kind === 'course' && item.ref.id === courseId,
     ),
   );
+
+  useEffect(() => {
+    if (!data || choseTab.current) return;
+    setTab(alreadyEnrolled ? 'lessons' : 'overview');
+  }, [alreadyEnrolled, data]);
 
   useEffect(() => {
     if (!data?.instructor) return;
@@ -111,16 +133,24 @@ export function CourseDetailScreen() {
   });
 
   const allLessons = useMemo(() => lessons.data ?? [], [lessons.data]);
+  const durationLabel = data?.durationLabel || formatLearningTime(
+    data?.durationMinutes
+      ?? (allLessons.reduce((total, lesson) => total + (lesson.durationSeconds ?? 0), 0) / 60 || undefined),
+  );
+  const syllabus = data?.syllabus?.length
+    ? data.syllabus
+    : allLessons.map(lesson => ({
+        title: lesson.title,
+        detail: lesson.notes && lesson.notes.length <= 160 ? lesson.notes : undefined,
+        durationMinutes: lesson.durationSeconds ? Math.round(lesson.durationSeconds / 60) : undefined,
+      }));
   const nextLesson = useMemo(
     () =>
-      allLessons.find(item => item.id === data?.progress?.nextLessonId) ??
-      allLessons.find(
-        item =>
-          item.state === 'current' ||
-          item.state === 'available' ||
-          item.state === 'preview',
-      ),
-    [allLessons, data?.progress?.nextLessonId],
+      pickLessonToOpen(allLessons, {
+        nextLessonId: data?.progress?.nextLessonId,
+        enrolled: alreadyEnrolled,
+      }),
+    [allLessons, alreadyEnrolled, data?.progress?.nextLessonId],
   );
   const visibleLessons = useMemo(() => {
     if (showAllLessons || allLessons.length <= 6) return allLessons;
@@ -139,12 +169,17 @@ export function CourseDetailScreen() {
 
   const openLesson = (lesson: Lesson) => {
     if (lesson.state === 'locked') {
-      Alert.alert(
-        'Lesson locked',
-        data?.pricing === 'paid' && !data.purchased
-          ? 'Buy this course to unlock the complete lesson plan.'
-          : 'Complete the previous lesson to unlock this one.',
-      );
+      if (!alreadyEnrolled && data?.pricing === 'paid' && !data.purchased) {
+        promptPayToEnrol({
+          kind: 'course',
+          id: courseId,
+          title: data.title,
+          price: data.price,
+          productId: data.productId ?? data.access.productId,
+        });
+        return;
+      }
+      Alert.alert('Lesson locked', 'Complete the previous lesson to unlock this one.');
       return;
     }
     if (!isAuthenticated() && lesson.state !== 'preview') {
@@ -172,29 +207,35 @@ export function CourseDetailScreen() {
     if (data.isSemester) {
       throw new Error('Semester learning is not available in the app yet.');
     }
-    if (
-      data.access.reason === 'purchase_required' ||
-      (data.pricing === 'paid' &&
-        !data.purchased &&
-        data.access.state !== 'granted')
-    ) {
-      throw new Error('This course needs an active entitlement. Checkout is not available in the app yet.');
-    }
-    if (!data.enrolled && isAuthenticated()) {
-      await repos.learning.enroll(courseId);
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.course(courseId),
+    if (needsEntitlement) {
+      promptPayToEnrol({
+        kind: 'course',
+        id: courseId,
+        title: data.title,
+        price: data.price,
+        productId: data.productId ?? data.access.productId,
       });
+      return;
     }
-    const availableLessons = await repos.learning.lessons(courseId);
-    const next =
-      availableLessons.find(lesson => lesson.id === data.progress?.nextLessonId)
-        ?.id ??
-      availableLessons.find(
-        lesson => lesson.state === 'current' || lesson.state === 'available',
-      )?.id;
+    if (!alreadyEnrolled && isAuthenticated()) {
+      await repos.learning.enroll(courseId);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.course(courseId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.enrollments(userKey),
+        }),
+      ]);
+    }
+    const freshLessons = await repos.learning.lessons(courseId);
+    const availableLessons = freshLessons.length ? freshLessons : allLessons;
+    const next = pickLessonToOpen(availableLessons, {
+      nextLessonId: data.progress?.nextLessonId,
+      enrolled: alreadyEnrolled,
+    });
     if (next) {
-      navigation.navigate('LessonPlayer', { courseId, lessonId: next });
+      navigation.navigate('LessonPlayer', { courseId, lessonId: next.id });
     } else {
       throw new Error('No lessons are available yet. Please check back later.');
     }
@@ -207,7 +248,7 @@ export function CourseDetailScreen() {
         course.refetch(),
         lessons.refetch(),
         sessionStatus === 'authenticated'
-          ? bookmarks.refetch()
+          ? Promise.all([bookmarks.refetch(), refetchEnrollments()])
           : Promise.resolve(),
       ]);
     } finally {
@@ -247,6 +288,7 @@ export function CourseDetailScreen() {
       next,
     );
   };
+
 
   return (
     <Screen padded={false} pullGestureHandlers={pullRefresh.gestureHandlers}>
@@ -309,7 +351,8 @@ export function CourseDetailScreen() {
                     {data.title}
                   </AppText>
                   <AccessBadge
-                    pricing={data.purchased ? 'purchased' : data.pricing}
+                    pricing={alreadyEnrolled || data.purchased ? 'purchased' : data.pricing}
+                    label={coursePriceLabel(pricedCourse ?? data)}
                   />
                 </View>
               </View>
@@ -321,7 +364,7 @@ export function CourseDetailScreen() {
                   {formatCount(data.learnerCount)} Learners
                 </Meta>
                 <Meta icon="clock" color="#7B1FA2">
-                  {(data.lessonCount ?? allLessons.length) || '—'} Lessons
+                  {durationLabel ?? `${(data.lessonCount ?? allLessons.length) || '—'} lessons`}
                 </Meta>
               </View>
             </ClayCard>
@@ -381,7 +424,10 @@ export function CourseDetailScreen() {
                   key={item}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: tab === item }}
-                  onPress={() => setTab(item)}
+                  onPress={() => {
+                    choseTab.current = true;
+                    setTab(item);
+                  }}
                   style={[styles.tab, tab === item && styles.tabOn]}
                 >
                   <AppText
@@ -428,8 +474,8 @@ export function CourseDetailScreen() {
                 !lessons.isError &&
                 allLessons.length === 0 ? (
                   <EmptyState
-                    title="Lessons are on the way"
-                    body="The course team is preparing this lesson plan."
+                    title="Lessons not available yet"
+                    body="Published lessons will show up here. A connection problem is shown separately from an empty lesson plan."
                   />
                 ) : null}
 
@@ -486,6 +532,9 @@ export function CourseDetailScreen() {
                 description={data.description}
                 outcomes={data.outcomes}
                 prerequisites={data.prerequisites}
+                durationLabel={durationLabel}
+                lessonCount={data.lessonCount ?? allLessons.length}
+                syllabus={syllabus}
               />
             ) : null}
 
@@ -502,18 +551,17 @@ export function CourseDetailScreen() {
                 <AppText
                   weight="800"
                   size={13}
+                  translate={alreadyEnrolled}
                   color={
-                    data.pricing === 'free' ? colors.success : colors.orange
+                    alreadyEnrolled || data.pricing === 'free' ? colors.success : colors.orange
                   }
                 >
-                  {data.purchased
-                    ? 'Purchased'
-                    : data.pricing === 'free'
-                    ? 'Free Course'
-                    : 'Paid Course'}
+                  {coursePriceHeadline(pricedCourse ?? data)}
                 </AppText>
-                <AppText size={9.5} color={colors.text2}>
-                  {data.enrolled || data.purchased
+                <AppText size={9.5} color={colors.text2} translate={!needsEntitlement}>
+                  {needsEntitlement
+                    ? payToEnrolCue(data.price)
+                    : alreadyEnrolled || data.purchased
                     ? 'Ready to continue'
                     : 'Start learning today'}
                 </AppText>
@@ -522,12 +570,15 @@ export function CourseDetailScreen() {
                 label={
                   action.busy
                     ? 'Opening…'
-                    : data.purchased || data.enrolled
+                    : alreadyEnrolled
+                    ? 'Enrolled'
+                    : needsEntitlement
+                    ? 'Pay to Enroll'
+                    : data.purchased
                     ? 'Continue Learning'
-                    : data.pricing === 'paid'
-                    ? 'Buy this course'
                     : 'Enroll for free'
                 }
+                tone={alreadyEnrolled ? 'success' : needsEntitlement ? 'orange' : 'primary'}
                 disabled={action.busy}
                 onPress={() => void action.run()}
                 style={styles.footerButton}
@@ -655,11 +706,21 @@ function OverviewTab({
   description,
   outcomes,
   prerequisites,
+  durationLabel,
+  lessonCount,
+  syllabus,
 }: {
   description?: string;
   outcomes?: string[];
   prerequisites?: string[];
+  durationLabel?: string;
+  lessonCount?: number;
+  syllabus: {title: string; detail?: string; durationMinutes?: number}[];
 }) {
+  const facts = [
+    durationLabel ? `Duration ${durationLabel}` : undefined,
+    lessonCount ? `${lessonCount} ${lessonCount === 1 ? 'lesson' : 'lessons'}` : undefined,
+  ].filter((item): item is string => Boolean(item));
   return (
     <View style={styles.tabContent}>
       <SectionHeader title="About this course" />
@@ -667,6 +728,11 @@ function OverviewTab({
         <AppText size={12.5} color={colors.text2} style={styles.bodyCopy}>
           {description ?? 'A detailed course overview will be available soon.'}
         </AppText>
+        {facts.length ? (
+          <AppText weight="700" size={12} color={colors.navy} style={styles.overviewFacts}>
+            {facts.join(' · ')}
+          </AppText>
+        ) : null}
       </ClayCard>
       {outcomes?.length ? (
         <>
@@ -678,6 +744,24 @@ function OverviewTab({
                 <AppText size={12} color={colors.ink} style={styles.bulletCopy}>
                   {outcome}
                 </AppText>
+              </View>
+            ))}
+          </ClayCard>
+        </>
+      ) : null}
+      {syllabus.length ? (
+        <>
+          <SectionHeader title="Syllabus" />
+          <ClayCard variant="white">
+            {syllabus.map((item, index) => (
+              <View key={`${item.title}-${index}`} style={styles.bulletRow}>
+                <AppText weight="800" size={12} color={colors.primary}>{index + 1}</AppText>
+                <View style={styles.bulletCopy}>
+                  <AppText weight="800" size={12.5} color={colors.navy}>{item.title}</AppText>
+                  <AppText size={12} color={colors.text2} style={styles.bodyCopy}>
+                    {[item.durationMinutes ? `${item.durationMinutes} min` : undefined, item.detail].filter(Boolean).join(' · ')}
+                  </AppText>
+                </View>
               </View>
             ))}
           </ClayCard>
@@ -856,6 +940,7 @@ const styles = createThemedStyles({
   followingBadge: { backgroundColor: colors.pastel.green },
   tabContent: { gap: 12 },
   bodyCopy: { lineHeight: 20 },
+  overviewFacts: { marginTop: 10 },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   bulletCopy: { flex: 1, lineHeight: 18 },
   reviewCard: { flexDirection: 'row', alignItems: 'center', gap: 14 },

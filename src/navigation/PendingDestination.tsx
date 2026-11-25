@@ -1,6 +1,5 @@
 import {useEffect} from 'react';
 import {useNavigation} from '@react-navigation/native';
-import {showLearnerUnavailable} from '../features/catalog/openPublishedTarget';
 import {useSessionStore} from '../core/session';
 import type {ContentRef} from '../core/types';
 import type {RootNav} from './types';
@@ -17,13 +16,28 @@ function replay(navigation: RootNav, dest: ContentRef) {
       navigation.navigate('Main', {screen: 'ProfileTab', params: {screen: 'DocumentList'}});
       return;
     case 'test':
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'TestInstructions', params: {testId: dest.id}}});
+      return;
     case 'liveClass':
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'LiveRoom', params: {liveClassId: dest.id}}});
+      return;
     case 'news':
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'NewsArticle', params: {articleId: dest.id}}});
+      return;
     case 'fact':
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'FactDetail', params: {factId: dest.id}}});
+      return;
     case 'interviewQuestion':
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'InterviewQuestion', params: {questionId: dest.id}}});
+      return;
+    case 'interviewCategory':
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'InterviewQuestionList', params: {categoryId: dest.id}}});
+      return;
     case 'exam':
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'ExamDetail', params: {examId: dest.id}}});
+      return;
     case 'topic':
-      showLearnerUnavailable();
+      navigation.navigate('Main', {screen: 'HomeTab', params: {screen: 'TopicDetail', params: {topicId: dest.id}}});
       return;
     default:
       return;

@@ -2,16 +2,17 @@ import {createThemedStyles} from '../../theme';
 import React from 'react';
 import {
   Alert,
+  AppState,
+  Image,
   Pressable,
   ScrollView,
-  useWindowDimensions,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type ScrollViewInstance,
 } from 'react-native';
 import {usePullRefreshFeedback} from '../../components/ui/AppRefreshControl';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { colors, gradients, space } from '../../theme';
 import {
   AppText,
@@ -22,15 +23,18 @@ import {
   SearchInput,
 } from '../../components/ui';
 import { BrandedHeader, Screen } from '../../components/layout/Screen';
-import { CourseCatalogCard, ExploreTile } from '../../components/content/Cards';
+import { CourseCatalogCard } from '../../components/content/Cards';
+import { ExploreHomeGrid } from '../../components/content/ExploreOptions';
 import { Gradient } from '../../components/ui/Gradient';
-import { BooksArt, Chalkboard, TeacherArt } from '../../assets/illustrations';
-import { ICON_NAMES, Icon, type IconName } from '../../assets/icons';
+import { Icon } from '../../assets/icons';
 import type { HomeNav } from '../../navigation/types';
-import type { CatalogItem, LiveClass } from '../../core/types';
+import type { HomeDashboard, LiveClass } from '../../core/types';
 import { ClayCard } from '../../components/ui/Clay';
-import { openPublishedTarget, showLearnerUnavailable } from '../../features/catalog/openPublishedTarget';
+import { openPublishedTarget } from '../../features/catalog/openPublishedTarget';
 import { useHomeDashboard } from '../../features/home/hooks/useHomeDashboard';
+import { useEnrolledCourseIds } from '../../features/catalog/useEnrolledCourseIds';
+import {promptNotificationAccessOnce, requestReminderPermission, openReminderSettings} from '../../features/settings/reminders';
+import {usePreferencesStore} from '../../features/settings/preferencesStore';
 
 function liveTimeLabel(item: LiveClass) {
   if (item.status === 'live') return 'Live now';
@@ -51,20 +55,214 @@ function liveTimeLabel(item: LiveClass) {
 }
 
 function liveActionLabel(item: LiveClass) {
-  if (item.status === 'ended' && item.recordingAvailable) return 'Watch Replay';
-  if (item.status === 'scheduled') return 'View Class';
-  return 'Join Now';
+  if (item.status === 'ended' && item.recordingAvailable) return 'Replay';
+  if (item.status === 'ended') return 'Ended';
+  if (item.status === 'scheduled') return 'View';
+  if (item.status === 'cancelled') return 'Cancelled';
+  return 'Join';
 }
 
-function sectionIcon(item: CatalogItem): IconName {
-  return ICON_NAMES.includes(item.icon as IconName)
-    ? (item.icon as IconName)
-    : 'bookopen';
+function liveBadgeLabel(item: LiveClass) {
+  if (item.status === 'ended') return 'RECORDING';
+  if (item.status === 'cancelled') return 'CANCELLED';
+  return 'LIVE CLASS';
+}
+
+type HomeBanner = HomeDashboard['banners'][number];
+
+const BANNER_INTERVAL_MS = 10_000;
+
+function AdminBannerCarousel({
+  banners,
+  onOpen,
+}: {
+  banners: HomeBanner[];
+  onOpen: (banner: HomeBanner) => void;
+}) {
+  const focused = useIsFocused();
+  const loop = banners.length > 1;
+  const slides = React.useMemo(
+    () => (loop ? [banners[banners.length - 1], ...banners, banners[0]] : banners),
+    [banners, loop],
+  );
+  const signature = banners.map(banner => banner.id).join('|');
+  const scroller = React.useRef<ScrollViewInstance>(null);
+  const dragging = React.useRef(false);
+  const correcting = React.useRef(false);
+  const indexRef = React.useRef(0);
+  const [index, setIndex] = React.useState(0);
+  const [cycle, setCycle] = React.useState(0);
+  const [track, setTrack] = React.useState(0);
+  const [appActive, setAppActive] = React.useState(AppState.currentState === 'active');
+
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      setAppActive(state === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+
+  React.useEffect(() => {
+    indexRef.current = 0;
+    setIndex(0);
+  }, [signature]);
+
+  React.useEffect(() => {
+    if (track <= 0) return;
+    const page = loop ? indexRef.current + 1 : indexRef.current;
+    scroller.current?.scrollTo({x: page * track, animated: false});
+  }, [track, loop, signature]);
+
+  React.useEffect(() => {
+    if (!loop || !focused || !appActive || track <= 0) return undefined;
+    const timer = setInterval(() => {
+      if (dragging.current) return;
+      const count = banners.length;
+      const next = (indexRef.current + 1) % count;
+      const targetPage = indexRef.current + 2;
+      indexRef.current = next;
+      setIndex(next);
+      scroller.current?.scrollTo({x: targetPage * track, animated: true});
+    }, BANNER_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [appActive, banners.length, cycle, focused, loop, track]);
+
+  const settlePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (track <= 0 || correcting.current) return;
+    let page = Math.round(event.nativeEvent.contentOffset.x / track);
+    if (loop && (page <= 0 || page >= banners.length + 1)) {
+      page = page <= 0 ? banners.length : 1;
+      correcting.current = true;
+      scroller.current?.scrollTo({x: page * track, animated: false});
+      correcting.current = false;
+    }
+    const visual = loop
+      ? Math.min(banners.length - 1, Math.max(0, page - 1))
+      : Math.min(banners.length - 1, Math.max(0, page));
+    indexRef.current = visual;
+    setIndex(visual);
+    if (dragging.current) {
+      dragging.current = false;
+      setCycle(value => value + 1);
+    }
+  };
+
+  const showBanner = (next: number) => {
+    if (track <= 0) return;
+    dragging.current = false;
+    indexRef.current = next;
+    setIndex(next);
+    const page = loop ? next + 1 : next;
+    scroller.current?.scrollTo({x: page * track, animated: true});
+    setCycle(value => value + 1);
+  };
+
+  return (
+    <View
+      onLayout={event => {
+        const next = Math.round(event.nativeEvent.layout.width);
+        setTrack(current => (current === next ? current : next));
+      }}
+    >
+      {track > 0 ? (
+        <ScrollView
+          ref={scroller}
+          horizontal
+          nestedScrollEnabled
+          pagingEnabled
+          bounces={loop}
+          directionalLockEnabled
+          disableIntervalMomentum
+          decelerationRate="fast"
+          snapToInterval={track}
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={loop}
+          contentOffset={{x: loop ? track : 0, y: 0}}
+          onScrollBeginDrag={() => {
+            dragging.current = true;
+          }}
+          onScrollEndDrag={event => {
+            const speed = Math.abs(event.nativeEvent.velocity?.x ?? 0);
+            if (speed < 0.05) settlePage(event);
+          }}
+          onMomentumScrollEnd={settlePage}
+          accessibilityLabel="Featured banners"
+        >
+          {slides.map((banner, slideIndex) => (
+            <BannerSlide
+              key={`${banner.id}-${slideIndex}`}
+              banner={banner}
+              width={track}
+              onOpen={onOpen}
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.heroPlaceholder} />
+      )}
+      {loop ? (
+        <View style={styles.dots} accessibilityRole="tablist">
+          {banners.map((banner, dotIndex) => (
+            <Pressable
+              key={banner.id}
+              accessibilityRole="tab"
+              accessibilityLabel={`Show banner ${dotIndex + 1} of ${banners.length}`}
+              accessibilityState={{selected: index === dotIndex}}
+              hitSlop={8}
+              onPress={() => showBanner(dotIndex)}
+              style={index === dotIndex ? styles.dotOn : styles.dot}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function BannerSlide({
+  banner,
+  width,
+  onOpen,
+}: {
+  banner: HomeBanner;
+  width: number;
+  onOpen: (banner: HomeBanner) => void;
+}) {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  React.useEffect(() => {
+    setImageFailed(false);
+  }, [banner.imageUrl]);
+  const actionable = Boolean(banner.imageUrl) && !imageFailed && Boolean(banner.targetId || banner.targetKind);
+  const open = () => onOpen(banner);
+
+  return (
+    <View style={{width}}>
+      <Pressable
+        accessibilityRole={actionable ? 'imagebutton' : 'image'}
+        accessibilityLabel={banner.altText || 'Promotional banner'}
+        accessibilityState={{disabled: !actionable}}
+        disabled={!actionable}
+        onPress={open}
+        style={({pressed}) => [pressed && actionable && styles.pressed]}
+      >
+        <View style={styles.marketingBanner}>
+          {banner.imageUrl && !imageFailed ? (
+            <Image
+              source={{uri: banner.imageUrl}}
+              style={styles.bannerPhoto}
+              resizeMode="cover"
+              onError={() => setImageFailed(true)}
+              accessibilityIgnoresInvertColors
+            />
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
+  );
 }
 
 export function HomeScreen() {
   const navigation = useNavigation<HomeNav>();
-  const { width } = useWindowDimensions();
   const { status, homeQuery, name, liveClasses } = useHomeDashboard();
   const pullRefresh = usePullRefreshFeedback({
     refreshing: homeQuery.isRefetching && !homeQuery.isLoading,
@@ -72,17 +270,44 @@ export function HomeScreen() {
       homeQuery.refetch().catch(() => undefined);
     },
   });
+  const [liveTrack, setLiveTrack] = React.useState(0);
   const [activeLive, setActiveLive] = React.useState(0);
   const liveRef = React.useRef<ScrollViewInstance>(null);
-  const bannerWidth = Math.max(288, Math.min(width, 760) - space.pageX * 2);
   const continuing = homeQuery.data?.continueLearning ?? [];
-  const sections = homeQuery.data?.sections.slice(0, 6) ?? [];
   const featuredCourses = homeQuery.data?.featuredCourses ?? [];
-  const primaryBanner = homeQuery.data?.banners[0];
+  const { ids: enrolledIds } = useEnrolledCourseIds();
+  const banners = homeQuery.data?.banners ?? [];
+  const announcementsOn = usePreferencesStore(state => state.notifAnnouncements);
+  const setAnnouncements = usePreferencesStore(state => state.setNotifAnnouncements);
+  const [announcementNote, setAnnouncementNote] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      promptNotificationAccessOnce().then(permission => {
+        if (!cancelled && permission === 'authorized') setAnnouncements(true);
+      }).catch(() => undefined);
+    }, 900);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [setAnnouncements]);
 
   React.useEffect(() => {
     if (activeLive >= liveClasses.length) setActiveLive(0);
   }, [activeLive, liveClasses.length]);
+
+  const settleLivePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (liveTrack <= 0) return;
+    const index = Math.round(event.nativeEvent.contentOffset.x / liveTrack);
+    setActiveLive(Math.min(liveClasses.length - 1, Math.max(0, index)));
+  };
+
+  const showLivePage = (index: number) => {
+    setActiveLive(index);
+    liveRef.current?.scrollTo({x: index * liveTrack, animated: true});
+  };
 
   const openResume = React.useCallback((item: (typeof continuing)[number]) => {
     navigation.navigate('LessonPlayer', {
@@ -108,20 +333,11 @@ export function HomeScreen() {
     ]);
   }, [navigation, openResume]);
 
-  const updateLivePage = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    setActiveLive(Math.round(event.nativeEvent.contentOffset.x / bannerWidth));
-  };
-
-  const showLivePage = (index: number) => {
-    setActiveLive(index);
-    liveRef.current?.scrollTo({ x: index * bannerWidth, animated: true });
-  };
-
   return (
     <Screen padded={false} pullGestureHandlers={pullRefresh.gestureHandlers}>
       <BrandedHeader
         unread={(homeQuery.data?.unreadNotifications ?? 0) > 0}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
         onProfile={() => navigation.getParent()?.navigate('ProfileTab')}
       />
       <ScrollView
@@ -143,39 +359,13 @@ export function HomeScreen() {
           onPress={() => navigation.navigate('Search')}
         />
 
-        {primaryBanner ? (
-          <Gradient
-            colors={gradients.banner}
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 1}}
-            style={styles.marketingBanner}
-          >
-            <View style={styles.marketingCopy}>
-              <AppText weight="900" size={19} color="#fff" numberOfLines={2}>
-                {primaryBanner.title}
-              </AppText>
-              {primaryBanner.subtitle ? (
-                <AppText size={11} color="rgba(255,255,255,0.86)" numberOfLines={2}>
-                  {primaryBanner.subtitle}
-                </AppText>
-              ) : null}
-            </View>
-            {primaryBanner.targetId ? (
-              <ClayButton
-                label={primaryBanner.ctaLabel || 'Open'}
-                tone="orange"
-                compact
-                icon="chev"
-                onPress={() =>
-                  openPublishedTarget(
-                    navigation,
-                    primaryBanner.targetKind,
-                    primaryBanner.targetId,
-                  )
-                }
-              />
-            ) : null}
-          </Gradient>
+        {banners.length ? (
+          <AdminBannerCarousel
+            banners={banners}
+            onOpen={banner =>
+              openPublishedTarget(navigation, banner.targetKind, banner.targetId)
+            }
+          />
         ) : null}
 
         <View style={styles.row}>
@@ -229,109 +419,117 @@ export function HomeScreen() {
             onRetry={() => homeQuery.refetch()}
           />
         ) : liveClasses.length ? (
-          <View style={styles.liveSection}>
-            <ScrollView
-              ref={liveRef}
-              horizontal
-              pagingEnabled
-              nestedScrollEnabled
-              decelerationRate="fast"
-              snapToInterval={bannerWidth}
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={updateLivePage}
-              accessibilityLabel="Live classes carousel"
-            >
-              {liveClasses.map(item => (
-                <View key={item.id} style={{ width: bannerWidth }}>
-                  <Gradient
-                    colors={gradients.banner}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.banner}
-                  >
-                    <View style={styles.bleft}>
-                      <View style={styles.bltop}>
-                        <View style={styles.livePulse}>
-                          <View style={styles.livedot} />
+          <View
+            style={styles.liveSection}
+            onLayout={event => {
+              const next = Math.round(event.nativeEvent.layout.width);
+              setLiveTrack(current => (current === next ? current : next));
+            }}
+          >
+            {liveTrack > 0 ? (
+              <ScrollView
+                ref={liveRef}
+                horizontal
+                pagingEnabled
+                nestedScrollEnabled
+                scrollEnabled={liveClasses.length > 1}
+                decelerationRate="fast"
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={settleLivePage}
+                accessibilityLabel="Live classes"
+              >
+                {liveClasses.map(item => {
+                const closed = item.status === 'cancelled';
+                  return (
+                    <View key={item.id} style={[styles.livePage, { width: liveTrack }]}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${liveActionLabel(item)}: ${item.title}`}
+                      accessibilityState={{ disabled: closed }}
+                      disabled={closed}
+                      onPress={() =>
+                        navigation.navigate('LiveRoom', { liveClassId: item.id })
+                      }
+                      style={({ pressed }) => [
+                        styles.liveCard,
+                        pressed && !closed && styles.pressed,
+                      ]}
+                    >
+                      <Gradient
+                        colors={gradients.banner}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.banner}
+                      >
+                        <View style={styles.bleft}>
+                          <View style={styles.titleRow}>
+                            <View
+                              style={[
+                                styles.livePulse,
+                                (item.status === 'ended' || closed) && styles.livePulseIdle,
+                              ]}
+                            >
+                              <View
+                                style={[
+                                  styles.livedot,
+                                  (item.status === 'ended' || closed) && styles.livedotIdle,
+                                ]}
+                              />
+                            </View>
+                            <AppText
+                              weight="800"
+                              size={14}
+                              color="#fff"
+                              numberOfLines={1}
+                              translate={false}
+                              style={styles.liveTitle}
+                            >
+                              {item.title}
+                            </AppText>
+                          </View>
+                          <View style={styles.metaRow}>
+                            <Gradient colors={gradients.orangeCta} style={styles.pill}>
+                              <AppText
+                                weight="800"
+                                size={8}
+                                color="#fff"
+                                style={styles.liveLabel}
+                              >
+                                {liveBadgeLabel(item)}
+                              </AppText>
+                            </Gradient>
+                            <Icon name="cal" size={11} color="rgba(255,255,255,0.78)" />
+                            <AppText
+                              size={10.5}
+                              weight="600"
+                              color="rgba(255,255,255,0.82)"
+                              style={styles.timeText}
+                              numberOfLines={1}
+                            >
+                              {liveTimeLabel(item)}
+                            </AppText>
+                          </View>
                         </View>
                         <Gradient
-                          colors={gradients.orangeCta}
-                          style={styles.pill}
+                          colors={closed ? ['#90A4AE', '#78909C'] : gradients.orangeCta}
+                          style={styles.liveChip}
                         >
-                          <AppText
-                            weight="800"
-                            size={9}
-                            color="#fff"
-                            style={styles.liveLabel}
-                          >
-                            {item.status === 'ended'
-                              ? 'RECORDING'
-                              : 'LIVE CLASS'}
+                          <AppText weight="800" size={11} color="#fff">
+                            {liveActionLabel(item)}
                           </AppText>
+                          {closed ? null : (
+                            <Icon name="chev" size={12} color="#fff" />
+                          )}
                         </Gradient>
-                      </View>
-                      <AppText
-                        weight="900"
-                        size={19}
-                        color="#fff"
-                        numberOfLines={2}
-                      >
-                        {item.title}
-                      </AppText>
-                      <View style={styles.time}>
-                        <Icon
-                          name="cal"
-                          size={13}
-                          color="rgba(255,255,255,0.85)"
-                        />
-                        <AppText
-                          size={10.5}
-                          weight="600"
-                          color="rgba(255,255,255,0.85)"
-                          style={styles.timeText}
-                          numberOfLines={1}
-                        >
-                          {liveTimeLabel(item)}
-                        </AppText>
-                      </View>
-                      <ClayButton
-                        label={liveActionLabel(item)}
-                        tone="orange"
-                        compact
-                        icon="chev"
-                        disabled={item.status === 'cancelled'}
-                        style={styles.liveButton}
-                        onPress={showLearnerUnavailable}
-                      />
-                    </View>
-                    <View style={styles.bvisual}>
-                      <View style={styles.chalk}>
-                        <Chalkboard />
-                      </View>
-                      <View style={styles.teacher}>
-                        <TeacherArt />
-                      </View>
-                      <View style={styles.books}>
-                        <BooksArt />
-                      </View>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`${liveActionLabel(item)}: ${
-                          item.title
-                        }`}
-                        onPress={showLearnerUnavailable}
-                        style={({ pressed }) => [
-                          styles.playover,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <Icon name="play" size={20} color="#fff" filled />
-                      </Pressable>
-                    </View>
-                  </Gradient>
-                </View>
-              ))}
+                      </Gradient>
+                    </Pressable>
+                  </View>
+                );
+              })}
             </ScrollView>
+            ) : (
+              <View style={styles.livePlaceholder} />
+            )}
             {liveClasses.length > 1 ? (
               <View style={styles.dots} accessibilityRole="tablist">
                 {liveClasses.map((item, index) => (
@@ -352,38 +550,27 @@ export function HomeScreen() {
           <LoadingBlock />
         ) : null}
 
-        <View style={styles.shead}>
-          <AppText weight="800" size={16.5} color={colors.navy}>
-            Explore Sections
-          </AppText>
+        <View style={styles.exploreHead}>
+          <View style={styles.exploreTitles}>
+            <AppText weight="800" size={16.5} color={colors.navy}>
+              Explore
+            </AppText>
+            <AppText size={11.5} color={colors.text2}>
+              Six ways to learn on RACI
+            </AppText>
+          </View>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="See all explore options"
             hitSlop={8}
             onPress={() => navigation.navigate('ExploreSections')}
           >
             <AppText weight="700" size={11.5} color={colors.primary}>
-              See all {homeQuery.data?.sections.length ?? 0} &gt;
+              See all &gt;
             </AppText>
           </Pressable>
         </View>
-        <View style={styles.grid}>
-          {sections.map(item => (
-            <ExploreTile
-              key={item.id}
-              title={item.title}
-              icon={sectionIcon(item)}
-              clay={item.clay}
-              color={item.iconColor || colors.primary}
-              onPress={() =>
-                openPublishedTarget(
-                  navigation,
-                  item.targetKind ?? item.kind,
-                  item.targetId ?? item.id,
-                )
-              }
-            />
-          ))}
-        </View>
+        <ExploreHomeGrid onOpen={option => option.open(navigation)} />
 
         {featuredCourses.length ? (
           <View style={styles.featured}>
@@ -393,7 +580,7 @@ export function HomeScreen() {
             {featuredCourses.map(course => (
               <CourseCatalogCard
                 key={course.id}
-                item={course}
+                item={{...course, enrolled: Boolean(course.enrolled) || enrolledIds.has(course.id)}}
                 onPress={() => navigation.navigate('CourseDetail', {courseId: course.id})}
               />
             ))}
@@ -511,6 +698,37 @@ export function HomeScreen() {
             />
           </ClayCard>
         ) : null}
+        {!announcementsOn ? (
+          <ClayCard variant="lavender">
+            <AppText weight="800" size={14} color={colors.navy}>Institute announcements</AppText>
+            <AppText size={12} color={colors.text2}>
+              Admissions, new courses, live classes and schedule changes. You can turn these on without creating an account.
+            </AppText>
+            <ClayButton
+              label="Allow notifications"
+              compact
+              onPress={() => {
+                void requestReminderPermission().then(permission => {
+                  if (permission === 'denied') {
+                    setAnnouncementNote('Notifications are off in device settings.');
+                    Alert.alert(
+                      'Allow notifications',
+                      'Turn on notifications so RACI can send institute announcements and class reminders.',
+                      [
+                        {text: 'Not now', style: 'cancel'},
+                        {text: 'Open settings', onPress: () => void openReminderSettings()},
+                      ],
+                    );
+                    return;
+                  }
+                  setAnnouncements(true);
+                  setAnnouncementNote('Announcements are on for this device.');
+                });
+              }}
+            />
+            {announcementNote ? <AppText size={12} color={colors.text2}>{announcementNote}</AppText> : null}
+          </ClayCard>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -524,16 +742,16 @@ const styles = createThemedStyles({
     gap: 14,
   },
   greetingSub: { marginTop: 6 },
+  heroPlaceholder: {height: 128},
   marketingBanner: {
-    minHeight: 118,
+    height: 148,
     borderRadius: 22,
-    padding: 16,
-    gap: 12,
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
     overflow: 'hidden',
+    backgroundColor: '#E8EEF8',
+    boxShadow:
+      '0 18px 30px -18px rgba(13,71,161,0.72), inset 0 1px 0 rgba(255,255,255,0.22)',
   },
-  marketingCopy: {gap: 6, maxWidth: 440},
+  bannerPhoto: {width: '100%', height: '100%'},
   row: { flexDirection: 'row', gap: 10 },
   tog: {
     flex: 1,
@@ -567,59 +785,57 @@ const styles = createThemedStyles({
   },
   pressed: { opacity: 0.82 },
   liveSection: { marginHorizontal: -space.pageX },
+  livePage: {
+    alignItems: 'center',
+    paddingHorizontal: space.pageX,
+  },
+  liveCard: { width: '100%' },
+  livePlaceholder: { height: 62, marginHorizontal: space.pageX },
   banner: {
-    minHeight: 172,
-    marginHorizontal: space.pageX,
-    borderRadius: 22,
+    minHeight: 62,
+    borderRadius: 16,
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingLeft: 12,
+    paddingRight: 8,
     overflow: 'hidden',
     boxShadow:
-      '0 22px 36px -16px rgba(13,71,161,0.6), inset 6px 6px 18px rgba(255,255,255,0.18), inset -6px -6px 18px rgba(2,20,60,0.3)',
+      '0 10px 18px -14px rgba(13,71,161,0.85), inset 0 1px 0 rgba(255,255,255,0.22)',
   },
   bleft: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 16,
-    paddingLeft: 16,
-    paddingRight: 4,
-    gap: 9,
+    gap: 5,
     justifyContent: 'center',
-    zIndex: 2,
   },
-  bltop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  liveTitle: { flex: 1, minWidth: 0 },
   livePulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,230,118,0.25)',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(0,230,118,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  livedot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#00E676' },
-  pill: { paddingVertical: 5, paddingHorizontal: 9, borderRadius: 999 },
-  liveLabel: { letterSpacing: 1.2 },
-  time: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  timeText: { flexShrink: 1 },
-  liveButton: { alignSelf: 'flex-start' },
-  bvisual: { width: 150, position: 'relative' },
-  chalk: { position: 'absolute', right: 10, top: 12 },
-  teacher: { position: 'absolute', left: 2, bottom: 14, zIndex: 3 },
-  books: { position: 'absolute', right: 16, bottom: 12, zIndex: 3 },
-  playover: {
-    position: 'absolute',
-    right: 52,
-    top: 34,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.55)',
+  livePulseIdle: { backgroundColor: 'rgba(255,255,255,0.16)' },
+  livedot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#00E676' },
+  livedotIdle: { backgroundColor: 'rgba(255,255,255,0.72)' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pill: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 999 },
+  liveLabel: { letterSpacing: 0.4 },
+  timeText: { flex: 1, minWidth: 0 },
+  liveChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 4,
-    boxShadow:
-      '0 10px 20px -6px rgba(0,0,0,0.4), inset 2px 2px 6px rgba(255,255,255,0.3)',
+    gap: 2,
+    paddingVertical: 7,
+    paddingLeft: 10,
+    paddingRight: 7,
+    borderRadius: 11,
+    flexShrink: 0,
   },
   dots: {
     flexDirection: 'row',
@@ -640,7 +856,13 @@ const styles = createThemedStyles({
     justifyContent: 'space-between',
     alignItems: 'baseline',
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
+  exploreHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  exploreTitles: {flex: 1, minWidth: 0, gap: 3},
   clcard: {
     flexDirection: 'row',
     alignItems: 'center',

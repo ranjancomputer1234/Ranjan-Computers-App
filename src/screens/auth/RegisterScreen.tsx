@@ -1,21 +1,25 @@
 import React from 'react';
-import {Pressable, ScrollView, TextInput, View, type TextInputProps} from 'react-native';
+import {Pressable, TextInput, View, type TextInputProps} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RediLogo} from '../../assets/illustrations';
 import {Icon, type IconName} from '../../assets/icons';
 import {AppText} from '../../components/ui';
 import {Gradient} from '../../components/ui/Gradient';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {Screen} from '../../components/layout/Screen';
 import {useRepositories} from '../../core/di';
 import {useAsyncAction} from '../../core/useAsyncAction';
-import {useSessionStore} from '../../core/session';
 import type {RootStackParamList} from '../../navigation/types';
 import {colors, gradients} from '../../theme';
+import {useGoogleAccount} from '../../features/auth/hooks/useGoogleAccount';
+import {blankAddress, compactAddress, type AddressForm} from '../../features/location/address';
+import {AddressField} from './AddressField';
+import {GoogleAuthButton} from './GoogleAuthButton';
 import {styles} from './styles';
 import {useUiTranslation} from '../../features/settings/uiTranslations';
 
-type FieldName = 'firstName' | 'lastName' | 'email' | 'phone' | 'city' | 'password' | 'confirmPassword';
+type FieldName = 'firstName' | 'lastName' | 'email' | 'phone' | 'address' | 'password' | 'confirmPassword';
 type FieldErrors = Partial<Record<FieldName, string>>;
 
 type SignupFieldProps = TextInputProps & {
@@ -31,18 +35,16 @@ function SignupField({label, icon, error, secure, ...inputProps}: SignupFieldPro
 
   return (
     <View style={styles.signupField}>
-      <AppText weight="800" size={9.5} color="#757575" style={styles.fieldLabel}>
+      <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
         {label}
       </AppText>
       <View style={[styles.signupInputSurface, error ? styles.signupInputError : null]}>
-        <View style={styles.signupFieldIcon} accessibilityElementsHidden>
-          <Icon name={icon} size={15} color={error ? colors.error : colors.primary} />
-        </View>
+        <Icon name={icon} size={18} color={error ? colors.error : colors.text3} />
         <TextInput
           {...inputProps}
           accessibilityLabel={tx(label)}
           placeholder={inputProps.placeholder ? tx(inputProps.placeholder) : undefined}
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.text3}
           secureTextEntry={secure ? hidden : false}
           style={styles.signupTextInput}
         />
@@ -52,12 +54,12 @@ function SignupField({label, icon, error, secure, ...inputProps}: SignupFieldPro
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel={tx(hidden ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`)}>
-            <Icon name="eye" size={16} color="#98A2B3" />
+            <Icon name="eye" size={18} color={colors.text3} />
           </Pressable>
         ) : null}
       </View>
       {error ? (
-        <AppText accessibilityRole="alert" size={9.5} color={colors.error}>
+        <AppText accessibilityRole="alert" size={12} color={colors.error}>
           {error}
         </AppText>
       ) : null}
@@ -66,13 +68,15 @@ function SignupField({label, icon, error, secure, ...inputProps}: SignupFieldPro
 }
 
 export function RegisterScreen() {
+  const tx = useUiTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const repos = useRepositories();
+  const google = useGoogleAccount();
   const [firstName, setFirstName] = React.useState('');
   const [lastName, setLastName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [phone, setPhone] = React.useState('');
-  const [city, setCity] = React.useState('');
+  const [address, setAddress] = React.useState<AddressForm>(blankAddress);
   const [password, setPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [errors, setErrors] = React.useState<FieldErrors>({});
@@ -85,7 +89,7 @@ export function RegisterScreen() {
       nextErrors.email = 'Enter a valid email address.';
     }
     if (phone && !/^[6-9]\d{9}$/.test(phone)) nextErrors.phone = 'Enter a valid 10-digit mobile number.';
-    if (city.trim().length > 100) nextErrors.city = 'City must be 100 characters or fewer.';
+    if (address.pincode && !/^\d{6}$/.test(address.pincode)) nextErrors.address = 'Enter a 6-digit PIN code.';
     if (password.length < 6) nextErrors.password = 'Use at least 6 characters.';
     if (!confirmPassword) nextErrors.confirmPassword = 'Confirm your password.';
     else if (confirmPassword !== password) nextErrors.confirmPassword = 'Passwords do not match.';
@@ -101,45 +105,59 @@ export function RegisterScreen() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    const emailAddress = email.trim().toLowerCase();
     const result = await repos.auth.register({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.trim().toLowerCase(),
+      email: emailAddress,
       phone: phone || undefined,
-      city: city.trim() || undefined,
+      ...compactAddress(address),
       password,
     });
-    await useSessionStore.getState().setAuthenticated(result.tokens, result.profile);
+    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'register', sentTo: emailAddress});
   });
 
   return (
     <Screen padded={false}>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAwareScrollView
+        style={styles.loginScroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.signupPage}>
-        <Gradient colors={gradients.loginHero} start={{x: 0.08, y: 0}} end={{x: 0.92, y: 1}} style={styles.hero}>
-          <RediLogo size={66} />
-          <AppText weight="900" size={20} color="#fff" center style={styles.instituteName}>
+        contentContainerStyle={styles.loginPage}>
+        <View style={styles.loginStage}>
+        <Gradient colors={gradients.loginHero} start={{x: 0.08, y: 0}} end={{x: 0.92, y: 1}} style={styles.loginBrand}>
+          <RediLogo size={72} />
+          <AppText weight="800" size={22} color="#fff" center style={styles.loginInstitute}>
             Ranjan Computer Institute
           </AppText>
-          <AppText weight="600" size={10} color="#FFD54F" center style={styles.tagline}>
+          <AppText weight="600" size={12} color="#FFD54F" center style={styles.loginTagline}>
             Learn Computer With AI
           </AppText>
-          <View style={styles.chalkboard}>
-            <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.chalkText}>
-              Learn <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.growText}>Grow</AppText>
+          <View style={styles.loginBoard}>
+            <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginChalk}>
+              Learn <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginGrow}>Grow</AppText>
             </AppText>
-            <AppText face="caveat" weight="700" size={15} color="#ECEFF1" style={styles.chalkText}>
+            <AppText face="caveat" weight="700" size={18} color="#ECEFF1" style={styles.loginChalk}>
               Succeed
             </AppText>
           </View>
         </Gradient>
 
-        <View style={styles.signupCard}>
-          <View style={styles.signupCardHeading}>
-            <AppText weight="900" size={17} color={colors.navy} center>Create Your Account</AppText>
-            <AppText size={10.5} color={colors.text2} center>Join RACI and begin your learning journey.</AppText>
+        <View style={styles.formCard}>
+          <View style={styles.loginHeading}>
+            <AppText weight="800" size={22} color={colors.navy} center style={styles.welcome}>Create your account</AppText>
+            <AppText weight="500" size={14} color={colors.text2} center>Join RACI and begin your learning journey.</AppText>
+          </View>
+
+          <GoogleAuthButton
+            label={tx('Sign up with Google')}
+            disabled={register.busy || google.busy}
+            onPress={() => void google.signInWithGoogleAccount(compactAddress(address))}
+          />
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <AppText weight="700" size={11} color={colors.text3} style={styles.dividerText}>OR</AppText>
+            <View style={styles.dividerLine} />
           </View>
 
           <SignupField
@@ -210,19 +228,13 @@ export function RegisterScreen() {
             error={errors.phone}
           />
 
-          <SignupField
-            label="City (optional)"
-            icon="pin"
-            value={city}
-            onChangeText={value => {
-              setCity(value);
-              clearError('city');
+          <AddressField
+            value={address}
+            error={errors.address}
+            onChange={next => {
+              setAddress(next);
+              clearError('address');
             }}
-            placeholder="Your city"
-            autoCapitalize="words"
-            autoCorrect={false}
-            returnKeyType="next"
-            error={errors.city}
           />
 
           <SignupField
@@ -262,8 +274,8 @@ export function RegisterScreen() {
 
           {register.error ? (
             <View style={styles.signupApiError}>
-              <Icon name="shield" size={15} color={colors.error} />
-              <AppText accessibilityRole="alert" size={10} color={colors.error} style={styles.signupApiErrorText}>
+              <Icon name="shield" size={16} color={colors.error} />
+              <AppText accessibilityRole="alert" size={13} color={colors.error} style={styles.signupApiErrorText}>
                 {register.error}
               </AppText>
             </View>
@@ -271,32 +283,34 @@ export function RegisterScreen() {
 
           <Pressable
             onPress={() => register.run()}
-            disabled={register.busy}
+            disabled={register.busy || google.busy}
             accessibilityRole="button"
-            accessibilityState={{disabled: register.busy}}
-            style={({pressed}) => [styles.signupButtonPressable, pressed && styles.pressed, register.busy && styles.disabled]}>
-            <Gradient colors={gradients.primaryButton} style={styles.signupButton}>
-              <AppText weight="800" size={12} color="#fff">
-                {register.busy ? 'Creating your account…' : 'Create account'}
+            accessibilityState={{disabled: register.busy || google.busy}}
+            style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, (register.busy || google.busy) && styles.disabled]}>
+            <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
+              <AppText weight="700" size={16} color="#fff" center>
+                {register.busy ? 'Sending code…' : 'Send verification code'}
               </AppText>
-              {!register.busy ? <Icon name="chev" size={16} color="#fff" /> : null}
             </Gradient>
           </Pressable>
         </View>
 
-        <Pressable
-          onPress={() => navigation.navigate('Login')}
-          accessibilityRole="button"
-          style={styles.centerLink}>
-          <AppText weight="600" size={10.5} color="#757575">Already have an account? </AppText>
-          <AppText weight="800" size={10.5} color={colors.primary}>Sign in</AppText>
-        </Pressable>
+        <View style={styles.loginFooter}>
+          <Pressable
+            onPress={() => navigation.navigate('Login')}
+            accessibilityRole="button"
+            style={styles.loginLink}>
+            <AppText weight="500" size={14} color={colors.text2}>Already have an account? </AppText>
+            <AppText weight="700" size={14} color={colors.primary}>Sign in</AppText>
+          </Pressable>
 
-        <View style={styles.signupTrustRow} accessibilityElementsHidden>
-          <Icon name="shield" size={13} color={colors.success} />
-          <AppText weight="600" size={9} color={colors.text3}>Your details are private and secure</AppText>
+          <View style={styles.signupTrustRow}>
+            <Icon name="shield" size={14} color={colors.success} />
+            <AppText weight="500" size={12} color={colors.text3}>Your details are private and secure</AppText>
+          </View>
         </View>
-      </ScrollView>
+        </View>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

@@ -6,7 +6,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import type {CatalogItem} from '../../core/types';
+import type {CatalogItem, Money} from '../../core/types';
+import {coursePriceLabel} from '../../features/catalog/coursePrice';
 import {colors} from '../../theme';
 import {ICON_NAMES, Icon} from '../../assets/icons';
 import type {IconName} from '../../assets/icons';
@@ -48,16 +49,20 @@ export function CourseCatalogCard({
   item,
   onPress,
 }: {
-  item: CatalogItem;
+  item: CatalogItem & {price?: Money; purchased?: boolean; enrolled?: boolean};
   onPress?: () => void;
 }) {
-  const isFree = item.pricing === 'free';
-  const accent = isFree ? colors.success : colors.orange;
+  const enrolled = Boolean(item.enrolled);
+  const isFree = enrolled || item.pricing === 'free';
+  const accent = enrolled || item.pricing === 'free' ? colors.success : colors.orange;
+  const priceLabel = coursePriceLabel(item);
+  const showsAmount = !enrolled && item.pricing === 'paid' && !item.purchased && priceLabel !== 'PAID';
+  const accessWords = enrolled ? 'enrolled' : showsAmount ? priceLabel : isFree ? 'free' : item.purchased ? 'purchased' : 'paid';
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${item.title}, ${isFree ? 'free' : 'paid'} course`}
+      accessibilityLabel={`${item.title}, ${accessWords} course`}
       onPress={onPress}
       style={({pressed}) => [
         styles.courseCard,
@@ -88,8 +93,13 @@ export function CourseCatalogCard({
             styles.courseBadge,
             isFree ? styles.courseBadgeFree : styles.courseBadgePaid,
           ]}>
-          <AppText weight="800" size={9} color={accent} style={styles.courseBadgeText}>
-            {isFree ? 'FREE' : 'PAID'}
+          <AppText
+            weight="800"
+            size={9}
+            color={accent}
+            translate={false}
+            style={[styles.courseBadgeText, showsAmount && styles.courseAmountText]}>
+            {priceLabel}
           </AppText>
         </View>
       </View>
@@ -215,4 +225,5 @@ const styles = createThemedStyles({
     boxShadow: '0 4px 8px -6px rgba(245, 124, 0, 0.45)',
   },
   courseBadgeText: {letterSpacing: 0.6},
+  courseAmountText: {letterSpacing: 0},
 });

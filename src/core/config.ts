@@ -10,6 +10,7 @@ export type AppConfig = {
   versionName: string;
   googleWebClientId?: string;
   googleIosClientId?: string;
+  googleMapsApiKey?: string;
   speechRecognitionEnabled: boolean;
   pushProvider: 'none' | 'fcm' | 'apns';
   videoProvider: 'native' | 'external';
@@ -24,7 +25,7 @@ export type AppConfig = {
   };
 };
 
-const native = NativeModules.RediBuildConfig ?? {};
+const native = NativeModules.RaciBuildConfig ?? {};
 
 /** Learner API. Paths in the handover are relative to this `/api` prefix. */
 export const PRODUCTION_API_BASE_URL = 'https://redi-api-production.up.railway.app/api';
@@ -43,7 +44,11 @@ function resolveApiBaseUrl(configured?: string): string {
     // The debug app can still be compiled with the emulator loopback. Those seed
     // accounts live on the production API, and no local server is required for them.
     if (isLocalApiHost(host)) return PRODUCTION_API_BASE_URL;
-    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${url.pathname}${url.search}`.replace(/\/+$/, '');
+    // Learner paths such as /auth/login are mounted under /api. A native build
+    // that only baked the host still has to reach that prefix.
+    const path = url.pathname.replace(/\/+$/, '');
+    const pathname = path && path !== '/' ? path : '/api';
+    return `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}${pathname}${url.search}`.replace(/\/+$/, '');
   } catch {
     return PRODUCTION_API_BASE_URL;
   }
@@ -77,15 +82,16 @@ export const appConfig: AppConfig = {
   seedAccounts: __DEV__ ? seedAccounts(native) : [],
   privacyPolicyUrl: native.privacyPolicyUrl || undefined,
   accountDeletionUrl: native.accountDeletionUrl || undefined,
-  versionName: native.versionName || '1.0.0',
+  versionName: native.versionName || '1.0.7',
   googleWebClientId: native.googleWebClientId || undefined,
+  googleMapsApiKey: native.googleMapsApiKey || undefined,
   speechRecognitionEnabled: false,
   pushProvider: Platform.OS === 'android' && native.firebaseEnabled ? 'fcm' : 'none',
   videoProvider: 'native',
   liveProvider: 'native',
   paymentRoute: Platform.OS === 'android' ? 'play_billing' : 'app_store',
   capabilities: {
-    googleLogin: false,
+    googleLogin: Boolean(native.googleWebClientId),
     // Live chat is intentionally disabled in every data mode. Keep this as a
     // capability flag so the UI and network layer cannot activate it from a
     // backend join response alone.

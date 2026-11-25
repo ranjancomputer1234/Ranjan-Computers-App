@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNBlobUtil from 'react-native-blob-util';
 import NetInfo from '@react-native-community/netinfo';
+import { ensureCourseStorage } from '../features/permissions/courseStorage';
 import { getPreference } from './storage';
 import { currentSessionGeneration } from './api/http';
 
@@ -168,6 +169,7 @@ export const offlineFiles = {
     // Generic video downloads are deliberately excluded: DRM requires a provider license.
     if (file.mimeType !== 'application/pdf')
       throw new Error('Only PDF resources can be saved on this build.');
+    await ensureCourseStorage();
     const expiresAt = downloadExpiry(auth);
     const generation = currentSessionGeneration();
     const key = owner + ':' + file.resourceId;
@@ -262,6 +264,7 @@ export const offlineFiles = {
    * The URL itself is not stored. Video streams must use playback.url instead.
    */
   async fetchPrivateCopy(auth: DownloadAuthorization): Promise<PrivateDelivery> {
+    await ensureCourseStorage();
     assertOfflineGrant(auth);
     downloadExpiry(auth);
     if (auth.kind === 'video' || auth.playback?.url) {

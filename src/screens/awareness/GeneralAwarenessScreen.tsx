@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import {useInfiniteQuery} from '@tanstack/react-query';
 import {useNavigation} from '@react-navigation/native';
-import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
 import {Icon, type IconName} from '../../assets/icons';
 import {BrandedHeader, Screen} from '../../components/layout/Screen';
 import {
@@ -213,7 +212,7 @@ export function GeneralAwarenessScreen() {
         showBack
         onBack={() => navigation.goBack()}
         onSearch={() => navigation.navigate('Search', {query: search || undefined})}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
       <FlatList
         {...pullRefresh.scrollProps}

@@ -21,7 +21,7 @@ static NSString *REDIPermissionName(UNAuthorizationStatus status)
 
 @implementation RediReminders
 
-RCT_EXPORT_MODULE();
+RCT_EXPORT_MODULE(RaciReminders);
 
 + (BOOL)requiresMainQueueSetup
 {

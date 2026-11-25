@@ -1,7 +1,6 @@
 import {createThemedStyles} from '../../theme';
-import React, {useId} from 'react';
-import {StyleSheet, View, type StyleProp, type ViewStyle} from 'react-native';
-import Svg, {Defs, LinearGradient as SvgLinearGradient, Rect, Stop} from 'react-native-svg';
+import React from 'react';
+import {View, type StyleProp, type ViewStyle} from 'react-native';
 
 type Props = {
   colors: readonly string[];
@@ -11,27 +10,36 @@ type Props = {
   children?: React.ReactNode;
 };
 
+/**
+ * Native background gradient. An SVG fill on every banner and button was an
+ * extra compositing layer, which shows up as stutter on 90/120 Hz panels.
+ */
+function linearGradientImage(
+  colors: readonly string[],
+  start: {x: number; y: number},
+  end: {x: number; y: number},
+) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const angle = Math.round((Math.atan2(dx, -dy) * 180) / Math.PI);
+  const normalized = ((angle % 360) + 360) % 360;
+  const stops = colors
+    .map((color, index) => {
+      const offset = colors.length === 1 ? 0 : (index / (colors.length - 1)) * 100;
+      return `${color} ${offset}%`;
+    })
+    .join(', ');
+  return `linear-gradient(${normalized}deg, ${stops})`;
+}
+
 export function Gradient({colors, start = {x: 0, y: 0}, end = {x: 0, y: 1}, style, children}: Props) {
-  const rawId = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const id = `g${rawId}`;
   return (
-    <View style={[styles.wrap, style]}>
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <Svg width="100%" height="100%" preserveAspectRatio="none">
-          <Defs>
-            <SvgLinearGradient id={id} x1={start.x} y1={start.y} x2={end.x} y2={end.y}>
-              {colors.map((color, index) => (
-                <Stop
-                  key={`${color}-${index}`}
-                  offset={colors.length === 1 ? '0' : `${(index / (colors.length - 1)) * 100}%`}
-                  stopColor={color}
-                />
-              ))}
-            </SvgLinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
-        </Svg>
-      </View>
+    <View
+      style={[
+        styles.wrap,
+        style,
+        {experimental_backgroundImage: linearGradientImage(colors, start, end)},
+      ]}>
       {children}
     </View>
   );

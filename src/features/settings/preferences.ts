@@ -29,6 +29,8 @@ export const DEFAULT_PREFERENCES = {
   notifTests: true,
   notifNews: true,
   notifOffers: true,
+  // General institute announcements stay off until the person allows notifications.
+  notifAnnouncements: false,
   onboardingComplete: false,
   learningGoal: null as LearningGoal | null,
 };
@@ -53,6 +55,13 @@ export function videoBitRate(quality: VideoQuality): number {
   if (quality === 'Data saver') return 700_000;
   if (quality === 'High quality') return 5_000_000;
   return 0;
+}
+
+/** First-segment bitrate. Starting below the ceiling shows a picture sooner, then ABR climbs. */
+export function videoInitialBitRate(quality: VideoQuality): number {
+  if (quality === 'Data saver') return 450_000;
+  if (quality === 'High quality') return 2_000_000;
+  return 1_000_000;
 }
 
 export function formatReminderClock(hour: number, minute: number): string {

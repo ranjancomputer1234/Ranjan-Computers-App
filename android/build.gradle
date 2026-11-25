@@ -5,17 +5,55 @@ buildscript {
         compileSdkVersion = 37
         targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
-        kotlinVersion = "2.2.0"
+        // Firebase BoM 35 artifacts ship Kotlin 2.4 metadata. React Native 0.87
+        // still catalogs 2.2.0, so the app pins a newer compiler here.
+        kotlinVersion = "2.4.21"
+        // KSP 2.3.x is the line that supports Kotlin 2.4. Async Storage's
+        // bundled map stops at 2.2 and reads this override.
+        kspVersion = "2.3.14"
     }
     repositories {
         google()
         mavenCentral()
     }
+    configurations.classpath {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == "org.jetbrains.kotlin" && details.requested.name.startsWith("kotlin-")) {
+                details.useVersion kotlinVersion
+            }
+        }
+    }
     dependencies {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
-        classpath("com.google.gms:google-services:4.5.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+        classpath("com.google.gms:google-services:4.6.0")
+    }
+}
+
+// Library modules resolve their own Kotlin/KSP plugins. Keep them on the same
+// versions as the app so Play Services and Firebase metadata can be compiled.
+subprojects { subproject ->
+    subproject.buildscript {
+        configurations.configureEach {
+            resolutionStrategy.eachDependency { details ->
+                def name = details.requested.name
+                if (details.requested.group == "org.jetbrains.kotlin" && name.startsWith("kotlin-")) {
+                    details.useVersion rootProject.ext.kotlinVersion
+                }
+                if (details.requested.group == "com.google.devtools.ksp" && name.startsWith("symbol-processing")) {
+                    details.useVersion rootProject.ext.kspVersion
+                }
+            }
+        }
+    }
+    subproject.configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            def name = details.requested.name
+            if (details.requested.group == "org.jetbrains.kotlin" && (name.startsWith("kotlin-stdlib") || name == "kotlin-reflect")) {
+                details.useVersion rootProject.ext.kotlinVersion
+            }
+        }
     }
 }
 

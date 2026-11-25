@@ -3,6 +3,7 @@ import {ScrollView, View} from 'react-native';
 import {usePullRefreshFeedback} from '../../components/ui/AppRefreshControl';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useQuery} from '@tanstack/react-query';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {useRepositories} from '../../core/di';
 import {queryKeys} from '../../core/query';
 import {AppText, AccessBadge, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
@@ -31,7 +32,12 @@ export function TestListScreen() {
         {...pullRefresh.scrollProps}
         contentContainerStyle={styles.page}>
         {tests.isLoading ? <LoadingBlock /> : null}
-        {tests.isError ? <ErrorState message="Tests could not be loaded." onRetry={() => void tests.refetch()} /> : null}
+        {tests.isError ? (
+          <ErrorState
+            message={isFeatureUnavailable(tests.error) ? 'Tests are not available in the app yet.' : 'Tests could not be loaded.'}
+            onRetry={isFeatureUnavailable(tests.error) ? undefined : () => void tests.refetch()}
+          />
+        ) : null}
         {tests.data?.map(test => (
           <ClayCard key={test.id} variant="white" onPress={() => navigation.navigate('TestInstructions', {testId: test.id})}>
             <View style={{flexDirection: 'row', alignItems: 'flex-start', gap: 10}}>

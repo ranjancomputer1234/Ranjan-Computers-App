@@ -1,5 +1,6 @@
 import type {
   AccessDecision,
+  LearnerAddress,
   Attempt,
   AwarenessTopic,
   Bookmark,
@@ -51,12 +52,22 @@ export type Repositories = {
 
 export type AuthRepository = {
   login: (identifier: string, password: string) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile}>;
-  register: (input: {fullName?: string; firstName?: string; lastName?: string; email: string; phone?: string; city?: string; password: string}) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile}>;
+  register: (input: {
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    email: string;
+    phone?: string;
+    password: string;
+  } & LearnerAddress) => Promise<{challengeId: string}>;
   verifyChallenge: (challengeId: string, code: string) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile}>;
   forgotPassword: (identifier: string) => Promise<{challengeId: string}>;
   verifyResetCode: (challengeId: string, code: string) => Promise<{resetToken: string}>;
   resetPassword: (challengeId: string, password: string) => Promise<void>;
-  exchangeGoogle: (idToken: string) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile}>;
+  exchangeGoogle: (
+    idToken: string,
+    address?: LearnerAddress,
+  ) => Promise<{tokens: import('./types').SessionTokens; profile: LearnerProfile; isNewUser: boolean}>;
   logout: () => Promise<void>;
   me: () => Promise<LearnerProfile>;
   updateMe: (patch: Partial<LearnerProfile>) => Promise<LearnerProfile>;
@@ -119,16 +130,31 @@ export type LiveRepository = {
   chatHistory: (id: string) => Promise<{id: string; body: string; at: string; mine?: boolean; senderName?: string; faculty?: boolean}[]>;
 };
 
+export type PaymentConfig = {
+  configured: boolean;
+  keyId?: string;
+  provider?: string;
+};
+
+export type CheckoutCharge = {
+  amountMinor: number;
+  currency: string;
+  courseId?: string;
+};
+
 export type CommerceRepository = {
   restore: (purchases: Record<string, unknown>[]) => Promise<Order[]>;
+  paymentConfig: () => Promise<PaymentConfig>;
   quote: (productId: string, coupon?: string) => Promise<Order['quote'] & {productId: string; title: string}>;
   createOrder: (
     productId: string,
     coupon?: string,
     idempotencyKey?: string,
     method?: PaymentMethodId,
+    charge?: CheckoutCharge,
   ) => Promise<Order>;
   getOrder: (id: string) => Promise<Order>;
+  noteOrder: (order: Order) => void;
   verify: (orderId: string, providerPayload?: Record<string, unknown>) => Promise<Order>;
   history: () => Promise<Order[]>;
   entitlements: () => Promise<{productId: string; access: AccessDecision}[]>;
@@ -140,7 +166,7 @@ export type AccountRepository = {
   markRead: (id: string) => Promise<void>;
   clearAll: () => Promise<{mode: 'archive' | 'mark_read'}>;
   registerPushDevice: (device: PushDeviceRegistration) => Promise<void>;
-  unregisterPushDevice: (installationId: string) => Promise<void>;
+  unregisterPushDevice: (token: string) => Promise<void>;
   documents: (kind?: 'admit_card' | 'certificate') => Promise<IssuedDocument[]>;
   document: (id: string) => Promise<IssuedDocument>;
   verifyDocument: (token: string) => Promise<{valid: boolean; status: string; message?: string; title?: string; serial?: string; issuer?: string; displayName?: string}>;

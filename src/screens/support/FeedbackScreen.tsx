@@ -3,11 +3,11 @@ import React from 'react';
 import {
   Alert,
   Linking,
-  ScrollView,
   View,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {useQuery} from '@tanstack/react-query';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {AppText, ClayButton, ErrorState, FilterChip, FormField, LoadingBlock} from '../../components/ui';
 import {useRepositories} from '../../core/di';
@@ -45,7 +45,7 @@ export function FeedbackScreen() {
   return (
     <Screen padded={false}>
       <DetailHeader title="Send Feedback" subtitle="Tell us what would make RACI better" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView contentContainerStyle={styles.page}>
         {support.isLoading ? <LoadingBlock /> : null}
         {support.isError ? <ErrorState message="Support contact details could not be loaded." onRetry={() => void support.refetch()} /> : null}
         {!support.isLoading && !support.isError ? (
@@ -75,11 +75,13 @@ export function FeedbackScreen() {
                 </AppText>
               </>
             ) : (
-              <ErrorState message="No support email is configured for this build." />
+              <AppText size={13} color={theme.colors.text2}>
+                A support email is not configured for this build, so this form cannot open a message yet. Help & Support lists what to do for missing lessons, locked courses, and features that are not connected yet.
+              </AppText>
             )}
           </>
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

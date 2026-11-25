@@ -47,7 +47,7 @@ import {NotificationSettingsScreen, SettingsScreen} from '../screens/settings';
 import {DownloadsScreen} from '../screens/downloads';
 import {DocumentListScreen, AdmitCardScreen, CertificateScreen, ProtectedViewerScreen} from '../screens/documents';
 import {AboutScreen, FeedbackScreen, HelpSupportScreen, LegalScreen} from '../screens/support';
-import {PaymentHistoryScreen, OrderDetailScreen, SubscriptionScreen} from '../screens/payments';
+import {PaymentHistoryScreen, OrderDetailScreen} from '../screens/payments';
 import {usePendingDestinationReplay} from './PendingDestination';
 import {RediTabBar} from './RediTabBar';
 
@@ -193,7 +193,6 @@ function ProfileStackNav() {
       <ProfileStack.Screen name="Legal" component={themedScreen(LegalScreen)} />
       <ProfileStack.Screen name="PaymentHistory" component={themedScreen(PaymentHistoryScreen)} />
       <ProfileStack.Screen name="OrderDetail" component={themedScreen(OrderDetailScreen)} />
-      <ProfileStack.Screen name="Subscription" component={themedScreen(SubscriptionScreen)} />
     </ProfileStack.Navigator>
   );
 }

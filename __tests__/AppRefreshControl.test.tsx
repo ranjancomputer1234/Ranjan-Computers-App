@@ -13,6 +13,34 @@ const metrics = {
   insets: {top: 44, left: 0, right: 0, bottom: 34},
 };
 
+function pointer(pageY: number, previousPageY: number, timeStamp: number) {
+  return {
+    nativeEvent: {
+      touches: [{identifier: 1, pageX: 10, pageY}],
+      changedTouches: [{identifier: 1, pageX: 10, pageY}],
+    },
+    touchHistory: {
+      mostRecentTimeStamp: timeStamp,
+      numberActiveTouches: 1,
+      indexOfSingleActiveTouch: 0,
+      touchBank: [
+        {
+          touchActive: true,
+          startPageX: 10,
+          startPageY: 100,
+          startTimeStamp: 1,
+          currentPageX: 10,
+          currentPageY: pageY,
+          currentTimeStamp: timeStamp,
+          previousPageX: 10,
+          previousPageY,
+          previousTimeStamp: timeStamp - 1,
+        },
+      ],
+    },
+  };
+}
+
 function PullRefreshHarness({
   onRefresh,
   refreshing = false,
@@ -61,8 +89,8 @@ test('shows pull progress, release feedback, and the refresh animation', async (
   const gestureSurface = screen.getByTestId('pull-gesture-surface');
   fireEvent(pullSurface, 'scroll', {nativeEvent: {contentOffset: {y: 0}}});
   await act(async () => {
-    gestureSurface.props.onTouchStartCapture({nativeEvent: {pageY: 100}});
-    gestureSurface.props.onTouchMoveCapture({nativeEvent: {pageY: 155}});
+    gestureSurface.props.onResponderGrant(pointer(100, 100, 10));
+    gestureSurface.props.onResponderMove(pointer(155, 100, 20));
   });
   await waitFor(() => {
     expect(screen.getByText('Pull to refresh')).toBeOnTheScreen();
@@ -70,7 +98,7 @@ test('shows pull progress, release feedback, and the refresh animation', async (
   });
 
   await act(async () => {
-    gestureSurface.props.onTouchMoveCapture({nativeEvent: {pageY: 210}});
+    gestureSurface.props.onResponderMove(pointer(210, 155, 30));
   });
   await waitFor(() => {
     expect(screen.getByText('Release to refresh')).toBeOnTheScreen();
@@ -78,7 +106,7 @@ test('shows pull progress, release feedback, and the refresh animation', async (
   });
 
   await act(async () => {
-    gestureSurface.props.onTouchEndCapture({nativeEvent: {pageY: 210}});
+    gestureSurface.props.onResponderRelease(pointer(210, 210, 40));
   });
 
   await waitFor(() => {

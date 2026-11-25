@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
-import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget';
 import {useInfiniteQuery, useQuery} from '@tanstack/react-query';
 import {useRepositories} from '../../core/di';
 import {queryKeys} from '../../core/query';
@@ -429,7 +428,7 @@ export function CompetitiveExamsScreen() {
       <BrandedHeader
         showBack={navigation.canGoBack()}
         onBack={() => navigation.goBack()}
-        onNotifications={showLearnerUnavailable}
+        onNotifications={() => navigation.navigate('Notifications')}
       />
       <FlatList
         {...pullRefresh.scrollProps}

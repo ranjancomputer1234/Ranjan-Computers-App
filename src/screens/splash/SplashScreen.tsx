@@ -4,19 +4,21 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
+  Image,
   StatusBar,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {RediLogo} from '../../assets/illustrations';
 import {Icon, type IconName} from '../../assets/icons';
 import {AppText} from '../../components/ui';
 import {Gradient} from '../../components/ui/Gradient';
 import {brand, colors, fonts} from '../../theme';
 import {SplashDeskBackdrop} from './SplashDeskBackdrop';
-import {WritingProgress} from './WritingProgress';
+import {ComputerBootBar} from './ComputerBootBar';
+
+const sealImage = require('../../assets/images/splash-seal.jpeg');
 
 type Props = {
   ready: boolean;
@@ -211,7 +213,12 @@ export function SplashScreen({ready, onFinish}: Props) {
             <View style={[styles.orbit, styles.innerOrbit, {width: stageSize - 72, height: stageSize - 72, borderRadius: stageSize}]} />
             <View style={styles.logoGlow} />
             <View style={styles.logoShell}>
-              <RediLogo size={logoSize} />
+              <Image
+                source={sealImage}
+                accessibilityLabel="RACI logo"
+                resizeMode="cover"
+                style={{width: logoSize, height: logoSize, borderRadius: logoSize / 2, backgroundColor: '#000'}}
+              />
             </View>
 
             <Animated.View style={[styles.chipTopLeft, {transform: [{translateY: chipLift}]}]}>
@@ -243,10 +250,7 @@ export function SplashScreen({ready, onFinish}: Props) {
         </View>
 
         <Animated.View style={[styles.footer, {opacity: detailsEntrance, transform: [{translateY: detailLift}]}]}>
-          <WritingProgress progress={progress} />
-          <AppText weight="600" size={10} color="rgba(255,255,255,0.7)" center style={styles.preparing}>
-            Preparing your classroom…
-          </AppText>
+          <ComputerBootBar progress={progress} compact={compact} />
         </Animated.View>
       </View>
     </Animated.View>
@@ -306,6 +310,5 @@ const styles = createThemedStyles({
   taglineRow: {marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9},
   taglineDot: {width: 4, height: 4, borderRadius: 2, backgroundColor: colors.orange},
   tagline: {fontFamily: fonts.inter, letterSpacing: 0.55},
-  footer: {alignItems: 'center', minHeight: 78, gap: 6},
-  preparing: {fontFamily: fonts.inter, letterSpacing: 0.4},
+  footer: {alignItems: 'center', width: '100%'},
 });

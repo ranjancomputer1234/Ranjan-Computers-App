@@ -2,6 +2,7 @@ import React from 'react';
 import {ScrollView} from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
+import {isFeatureUnavailable} from '../../core/api/http';
 import {useRepositories} from '../../core/di';
 import {AppText, ClayButton, ErrorState, FormField, LoadingBlock} from '../../components/ui';
 import {accountKey} from '../../core/session';
@@ -43,7 +44,12 @@ export function ProjectDetailScreen() {
       <DetailHeader title="Project" onBack={() => navigation.goBack()} />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
         {project.isLoading ? <LoadingBlock /> : null}
-        {project.isError ? <ErrorState message="Could not load this project." onRetry={() => void project.refetch()} /> : null}
+        {project.isError ? (
+          <ErrorState
+            message={isFeatureUnavailable(project.error) ? 'Projects are not available in the app yet.' : 'Could not load this project.'}
+            onRetry={isFeatureUnavailable(project.error) ? undefined : () => void project.refetch()}
+          />
+        ) : null}
         <AppText weight="800">{project.data?.title}</AppText>
         <AppText size={12}>{project.data?.instructions}</AppText>
         {project.data?.feedback ? <AppText>{project.data.feedback}</AppText> : null}

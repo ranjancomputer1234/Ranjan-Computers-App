@@ -1,178 +1,163 @@
 import React from 'react';
-import {Pressable, ScrollView, TextInput, View} from 'react-native';
+import {Pressable, TextInput, View} from 'react-native';
 import {useNavigation} from '@react-navigation/native';
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useRepositories} from '../../core/di';
 import {AppText} from '../../components/ui';
 import {Gradient} from '../../components/ui/Gradient';
+import {KeyboardAwareScrollView} from '../../components/layout/KeyboardAwareScrollView';
 import {Screen} from '../../components/layout/Screen';
 import {useAsyncAction} from '../../core/useAsyncAction';
 import {RediLogo} from '../../assets/illustrations';
 import {colors, gradients} from '../../theme';
 import {Icon} from '../../assets/icons';
-import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import type {RootStackParamList} from '../../navigation/types';
 import {styles} from './styles';
-import {useUiTranslation} from '../../features/settings/uiTranslations';
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ForgotPasswordScreen() {
-  const tx = useUiTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const repos = useRepositories();
-  const [identifier, setIdentifier] = React.useState('');
+  const [email, setEmail] = React.useState('');
   const [fieldError, setFieldError] = React.useState('');
-  const isPhone = identifier.length === 0 || /^\d+$/.test(identifier);
-
-  const changeIdentifier = (text: string) => {
-    const nextValue = /^[+\d\s-]*$/.test(text)
-      ? text.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '').slice(0, 10)
-      : text;
-    setIdentifier(nextValue);
-    setFieldError('');
-  };
 
   const send = useAsyncAction(async () => {
-    const value = identifier.trim();
-    const validPhone = /^[6-9]\d{9}$/.test(value);
-    const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-    if (!validPhone && !validEmail) {
-      setFieldError('Enter a valid email address or 10-digit mobile number.');
+    const value = email.trim().toLowerCase();
+    if (!emailPattern.test(value)) {
+      setFieldError('Enter a valid email address.');
       return;
     }
     setFieldError('');
-    const result = await repos.auth.forgotPassword(validEmail ? value.toLowerCase() : value);
-    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'reset'});
+    const result = await repos.auth.forgotPassword(value);
+    navigation.navigate('VerifyContact', {challengeId: result.challengeId, mode: 'reset', sentTo: value});
   });
 
   return (
     <Screen padded={false}>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAwareScrollView
+        style={styles.loginScroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.forgotPage}>
-        <Gradient
-          colors={gradients.loginHero}
-          start={{x: 0.08, y: 0}}
-          end={{x: 0.92, y: 1}}
-          style={styles.recoveryHero}>
-          <View style={styles.recoveryGlowOne} accessibilityElementsHidden />
-          <View style={styles.recoveryGlowTwo} accessibilityElementsHidden />
+        contentContainerStyle={styles.loginPage}>
+        <View style={styles.loginStage}>
+          <Gradient
+            colors={gradients.loginHero}
+            start={{x: 0.08, y: 0}}
+            end={{x: 0.92, y: 1}}
+            style={styles.forgotBrand}>
+            <View style={styles.forgotTopRow}>
+              <Pressable
+                onPress={() => navigation.goBack()}
+                accessibilityRole="button"
+                accessibilityLabel="Back to login"
+                hitSlop={8}
+                style={({pressed}) => [styles.forgotBackButton, pressed && styles.pressed]}>
+                <Icon name="back" size={20} color="#fff" />
+              </Pressable>
+              <View style={styles.forgotTopSpacer} />
+            </View>
+            <RediLogo size={64} />
+            <AppText weight="800" size={20} color="#fff" center style={styles.loginInstitute}>
+              Ranjan Computer Institute
+            </AppText>
+            <AppText weight="600" size={12} color="#FFD54F" center style={styles.loginTagline}>
+              Learn Computer With AI
+            </AppText>
+          </Gradient>
 
-          <View style={styles.recoveryTopRow}>
+          <View style={styles.formCard}>
+            <View style={styles.loginHeading}>
+              <View style={styles.otpSteps} accessibilityElementsHidden>
+                <View style={[styles.otpStepMark, styles.otpStepCurrent]} />
+                <View style={[styles.otpStepMark, styles.otpStepPending]} />
+                <View style={[styles.otpStepMark, styles.otpStepPending]} />
+              </View>
+              <AppText weight="700" size={12} color={colors.primary} style={styles.forgotStep}>
+                Step 1 of 3
+              </AppText>
+              <AppText weight="800" size={22} color={colors.navy} center style={styles.welcome}>
+                Reset your password
+              </AppText>
+              <AppText weight="500" size={14} color={colors.text2} center style={styles.forgotLead}>
+                Enter the email address on your account. We’ll send a one-time code so you can set a new password.
+              </AppText>
+            </View>
+
+            <View style={styles.field}>
+              <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
+                Email address
+              </AppText>
+              <View style={[styles.inputSurface, fieldError ? styles.forgotInputError : null]}>
+                <Icon name="send" size={18} color={fieldError ? colors.error : colors.text3} />
+                <TextInput
+                  value={email}
+                  onChangeText={text => {
+                    setEmail(text);
+                    setFieldError('');
+                    send.clearError();
+                  }}
+                  onSubmitEditing={() => void send.run()}
+                  placeholder="name@example.com"
+                  placeholderTextColor={colors.text3}
+                  accessibilityLabel="Email address"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  returnKeyType="send"
+                  style={styles.textInput}
+                />
+              </View>
+              {fieldError ? (
+                <AppText accessibilityRole="alert" size={12} color={colors.error}>
+                  {fieldError}
+                </AppText>
+              ) : null}
+            </View>
+
+            {send.error ? (
+              <View style={styles.signupApiError} accessibilityRole="alert">
+                <Icon name="help" size={16} color={colors.error} />
+                <AppText size={13} weight="600" color={colors.error} style={styles.signupApiErrorText}>
+                  {send.error}
+                </AppText>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={() => void send.run()}
+              disabled={send.busy}
+              accessibilityRole="button"
+              accessibilityState={{disabled: send.busy}}
+              style={({pressed}) => [styles.loginPressable, pressed && styles.pressed, send.busy && styles.disabled]}>
+              <Gradient colors={gradients.primaryButton} style={styles.loginButton}>
+                <AppText weight="700" size={16} color="#fff" center>
+                  {send.busy ? 'Sending reset code…' : 'Send reset code'}
+                </AppText>
+              </Gradient>
+            </Pressable>
+
+            <View style={styles.signupTrustRow}>
+              <Icon name="shield" size={15} color={colors.success} />
+              <AppText size={12} weight="500" color={colors.text2} style={styles.forgotTrust}>
+                The code is sent only by email. Keep it private.
+              </AppText>
+            </View>
+          </View>
+
+          <View style={styles.loginFooter}>
             <Pressable
               onPress={() => navigation.goBack()}
               accessibilityRole="button"
-              accessibilityLabel="Back to login"
-              hitSlop={8}
-              style={({pressed}) => [styles.recoveryBackButton, pressed && styles.pressed]}>
-              <Icon name="back" size={19} color="#fff" />
+              accessibilityLabel="Return to sign in"
+              style={styles.loginLink}>
+              <AppText weight="500" size={14} color={colors.text2}>Remember your password? </AppText>
+              <AppText weight="700" size={14} color={colors.primary}>Sign in</AppText>
             </Pressable>
-            <View style={styles.recoveryBrand} accessibilityElementsHidden>
-              <RediLogo size={38} />
-              <View>
-                <AppText weight="900" size={11.5} color="#fff">RACI</AppText>
-                <AppText weight="600" size={8.5} color="#BBDEFB">Learning made simple</AppText>
-              </View>
-            </View>
-            <View style={styles.recoveryTopSpacer} />
           </View>
-
-          <View style={styles.recoveryHeading}>
-            <View style={styles.recoveryIcon} accessibilityElementsHidden>
-              <Icon name="lock" size={27} color={colors.primary} strokeWidth={2.25} />
-            </View>
-            <AppText weight="900" size={24} color="#fff" center>
-              Let’s get you back in
-            </AppText>
-            <AppText size={11.5} weight="600" color="#D8E9FF" center style={styles.recoveryDescription}>
-              Recover your account in just two quick steps.
-            </AppText>
-          </View>
-        </Gradient>
-
-        <View style={styles.recoveryBody}>
-          <View style={styles.recoveryCard}>
-          <View style={styles.recoveryCardHeading}>
-            <AppText weight="900" size={17} color={colors.navy}>
-              Find your account
-            </AppText>
-            <AppText size={10.5} color={colors.text2} style={styles.recoveryCardDescription}>
-              Enter the email address or mobile number linked to your RACI account.
-            </AppText>
-          </View>
-
-          <View style={styles.recoveryField}>
-            <AppText weight="800" size={9.5} color="#757575" style={styles.recoveryLabel}>
-              EMAIL ADDRESS OR MOBILE NUMBER
-            </AppText>
-            <View style={[styles.recoveryInputSurface, fieldError ? styles.recoveryInputError : null]}>
-              <View style={styles.recoveryFieldIcon} accessibilityElementsHidden>
-                <Icon name={isPhone ? 'chat' : 'send'} size={15} color={fieldError ? colors.error : colors.primary} />
-              </View>
-              {isPhone ? <AppText weight="800" size={12} color={colors.primary}>+91</AppText> : null}
-              <TextInput
-                value={identifier}
-                onChangeText={changeIdentifier}
-                onSubmitEditing={() => void send.run()}
-                placeholder={tx(isPhone ? '10-digit mobile number' : 'name@example.com')}
-                placeholderTextColor="#98A2B3"
-                accessibilityLabel={tx('Email address or mobile number')}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete={isPhone ? 'tel' : 'email'}
-                keyboardType="email-address"
-                returnKeyType="send"
-                textContentType={isPhone ? 'telephoneNumber' : 'emailAddress'}
-                style={styles.recoveryTextInput}
-              />
-            </View>
-            {fieldError ? (
-              <AppText accessibilityRole="alert" size={9.5} color={colors.error}>
-                {fieldError}
-              </AppText>
-            ) : null}
-          </View>
-
-          {send.error ? (
-            <View style={styles.recoveryError} accessibilityRole="alert">
-              <Icon name="help" size={14} color={colors.error} />
-              <AppText size={10} weight="600" color={colors.error} style={styles.recoveryErrorText}>
-                {send.error}
-              </AppText>
-            </View>
-          ) : null}
-
-          <Pressable
-            onPress={() => void send.run()}
-            disabled={send.busy}
-            accessibilityRole="button"
-            accessibilityState={{disabled: send.busy}}
-            style={({pressed}) => [styles.recoverySubmitPressable, pressed && styles.pressed, send.busy && styles.disabled]}>
-            <Gradient colors={gradients.primaryButton} style={styles.recoverySubmitButton}>
-              <AppText weight="800" size={12} color="#fff">
-                {send.busy ? 'Sending verification code…' : 'Continue securely'}
-              </AppText>
-              {!send.busy ? <Icon name="chev" size={16} color="#fff" /> : null}
-            </Gradient>
-          </Pressable>
-
-          <View style={styles.recoveryNote}>
-            <Icon name="shield" size={14} color={colors.success} />
-            <AppText size={9.5} weight="600" color={colors.text2} style={styles.recoveryNoteText}>
-              We’ll send a one-time verification code. Your details stay private and secure.
-            </AppText>
-          </View>
-          </View>
-
-          <Pressable
-            onPress={() => navigation.goBack()}
-            accessibilityRole="button"
-            accessibilityLabel="Return to sign in"
-            style={styles.recoverySignIn}>
-            <AppText weight="600" size={10.5} color={colors.text2}>Remember your password? </AppText>
-            <AppText weight="800" size={10.5} color={colors.primary}>Sign in</AppText>
-          </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

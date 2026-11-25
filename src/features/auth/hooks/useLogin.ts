@@ -5,11 +5,13 @@ import {zodResolver} from '@hookform/resolvers/zod';
 import {useRepositories} from '../../../core/di';
 import {useSessionStore} from '../../../core/session';
 import {loginSchema, type LoginFormValues} from '../schema';
+import {useGoogleAccount} from './useGoogleAccount';
 
 export function useLogin() {
   const repos = useRepositories();
   const setAuthenticated = useSessionStore(s => s.setAuthenticated);
   const enterGuest = useSessionStore(s => s.enterGuest);
+  const google = useGoogleAccount();
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {identifier: '', password: ''},
@@ -18,7 +20,7 @@ export function useLogin() {
   const lock = React.useRef(false);
 
   const signIn = React.useCallback(async (values: LoginFormValues) => {
-    if (lock.current) return;
+    if (lock.current || google.busy) return;
     lock.current = true;
     setBusy(true);
     try {
@@ -31,23 +33,25 @@ export function useLogin() {
       lock.current = false;
       setBusy(false);
     }
-  }, [repos.auth, setAuthenticated]);
+  }, [google.busy, repos.auth, setAuthenticated]);
 
   const onSubmit = form.handleSubmit(signIn);
 
-  const loginWithSeedAccount = React.useCallback(
-    (values: LoginFormValues) => {
-      form.reset(values);
-      void signIn(values);
-    },
-    [form, signIn],
-  );
+  const signInWithGoogleAccount = React.useCallback(async () => {
+    if (lock.current || busy) return;
+    lock.current = true;
+    try {
+      await google.signInWithGoogleAccount();
+    } finally {
+      lock.current = false;
+    }
+  }, [busy, google]);
 
   return {
     form,
-    busy,
+    busy: busy || google.busy,
     onSubmit,
-    loginWithSeedAccount,
+    signInWithGoogleAccount,
     enterGuest,
   };
 }

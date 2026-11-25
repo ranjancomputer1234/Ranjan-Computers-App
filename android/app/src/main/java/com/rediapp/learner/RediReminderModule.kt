@@ -245,7 +245,7 @@ class RediReminderRestoreReceiver : BroadcastReceiver() {
 }
 
 class RediReminderModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
-  override fun getName() = "RediReminders"
+  override fun getName() = "RaciReminders"
 
   @ReactMethod
   fun permissionStatus(promise: Promise) {

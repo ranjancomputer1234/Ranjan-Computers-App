@@ -107,9 +107,17 @@ export type CatalogItem = {
   targetId?: EntityId;
   /** Raw API targetKind (`course`, `catalog`, `section`, and the rest of the handover list). */
   targetKind?: string;
+  /** Explore-section filter from the API: `all`, `free`, or `paid`. */
+  pricingFilter?: PricingFilter;
   /** Parent course for lesson search results. */
   courseId?: EntityId;
   access: AccessDecision;
+};
+
+export type CourseSyllabusItem = {
+  title: string;
+  detail?: string;
+  durationMinutes?: number;
 };
 
 export type Course = CatalogItem & {
@@ -117,6 +125,11 @@ export type Course = CatalogItem & {
   description?: string;
   outcomes?: string[];
   prerequisites?: string[];
+  /** Published length in minutes, from the catalogue or the lesson list. */
+  durationMinutes?: number;
+  /** Server label such as `45 min` or `1.5 hr`. */
+  durationLabel?: string;
+  syllabus?: CourseSyllabusItem[];
   rating?: number;
   learnerCount?: number;
   lessonCount?: number;
@@ -124,6 +137,8 @@ export type Course = CatalogItem & {
   instructor?: Instructor;
   progress?: LearningProgress;
   productId?: EntityId;
+  /** Sellable amount from the learner API. Absent on free courses. */
+  price?: Money;
   purchased?: boolean;
   enrolled?: boolean;
 };
@@ -277,6 +292,8 @@ export type Fact = {
   bookmarked: boolean;
   featured?: boolean;
   quizId?: EntityId;
+  /** Omitted explanation means the paid copy was withheld. */
+  access?: AccessDecision;
 };
 
 export type InterviewCategory = CatalogItem;
@@ -285,10 +302,13 @@ export type InterviewQuestion = {
   categoryId: EntityId;
   prompt: string;
   modelAnswer?: string;
+  /** When denied, modelAnswer is withheld even if the payload included it. */
+  access?: AccessDecision;
 };
 
 export type LiveClass = {
   id: EntityId;
+  courseId?: EntityId;
   title: string;
   startsAt: string;
   endsAt: string;
@@ -301,7 +321,13 @@ export type LiveClass = {
     | 'ended'
     | 'cancelled';
   batch?: string;
+  /** Example: `Tue, 25 Nov · 06:30 – 07:30 pm IST`. */
+  scheduleLabel?: string;
+  startsInMinutes?: number | null;
+  durationMinutes?: number;
   durationLabel?: string;
+  /** True while the class is scheduled or starting. */
+  canSetReminder?: boolean;
   viewerCount?: number;
   recordingAvailable: boolean;
   reminderSet?: boolean;
@@ -385,6 +411,8 @@ export type Order = {
   method?: PaymentMethodId;
   methodDetail?: string;
   receiptId?: string;
+  /** Razorpay key from create-order. The sheet uses this, not a key invented on the phone. */
+  providerKeyId?: string;
 };
 
 export type PaymentMethodId = 'upi' | 'card' | 'netbanking' | 'wallet';
@@ -430,16 +458,33 @@ export type NotificationItem = {
 };
 
 export type PushDeviceRegistration = {
-  installationId: string;
+  /** FCM registration token. At least 8 characters. */
+  token: string;
+  installationId?: string;
   provider: 'fcm';
   platform: 'android';
   appVersion: string;
   locale: string;
   timezone: string;
   categories: Exclude<NotificationCategory, 'system'>[];
+  notifClasses?: boolean;
+  notifTests?: boolean;
+  notifNews?: boolean;
+  notifOffers?: boolean;
 };
 
-export type LearnerProfile = {
+export type LearnerAddress = {
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  placeId?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+export type LearnerProfile = LearnerAddress & {
   id: EntityId;
   fullName: string;
   email?: string;
@@ -447,7 +492,6 @@ export type LearnerProfile = {
   phoneMasked?: string;
   avatarUrl?: string;
   currentlyLearning?: string;
-  city?: string;
   interests: string[];
   memberSince?: string;
   stats: { courses: number; tests: number; streakDays: number };
@@ -500,8 +544,9 @@ export type HomeDashboard = {
   banners: Array<{
     id: EntityId;
     title: string;
-    subtitle?: string;
-    ctaLabel?: string;
+    /** Screen-reader description. The home carousel does not draw this. */
+    altText?: string;
+    /** Required for a banner to appear. The carousel draws this image only. */
     imageUrl?: string;
     targetKind?: string;
     targetId?: EntityId;
