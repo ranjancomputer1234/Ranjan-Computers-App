@@ -13,7 +13,7 @@ import {useQueries, useQuery} from '@tanstack/react-query';
 import {useRepositories} from '../../core/di';
 import {queryKeys} from '../../core/query';
 import {accountKey, useSessionStore} from '../../core/session';
-import {AppText, EmptyState, ErrorState, LoadingBlock, ProgressBar, SearchInput} from '../../components/ui';
+import {AppText, CardAtmosphere, EmptyState, ErrorState, LoadingBlock, ProgressBar, SearchInput} from '../../components/ui';
 import {ClayButton, ClayCard, IconButton} from '../../components/ui/Clay';
 import {Gradient} from '../../components/ui/Gradient';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
@@ -214,7 +214,7 @@ function ProgressOverview({
 }) {
   return (
     <Gradient colors={gradients.banner} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.overview}>
-      <View style={styles.overviewGlow} />
+      <CardAtmosphere />
       <View style={styles.overviewTop}>
         <View style={styles.overviewCopy}>
           <AppText weight="900" size={18} color="#fff">Your learning progress</AppText>
@@ -376,7 +376,6 @@ const styles = createThemedStyles({
   guestIcon: {width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.pastel.blue},
   guestCopy: {maxWidth: 290, lineHeight: 19},
   overview: {borderRadius: radius.hero, padding: 16, overflow: 'hidden', boxShadow: '0 16px 27px -15px rgba(13,71,161,0.72)'},
-  overviewGlow: {position: 'absolute', width: 150, height: 150, borderRadius: 75, right: -48, top: -68, backgroundColor: 'rgba(255,255,255,0.09)'},
   overviewTop: {flexDirection: 'row', alignItems: 'center', gap: 14},
   overviewCopy: {flex: 1, minWidth: 0},
   overviewSubtitle: {marginTop: 5},

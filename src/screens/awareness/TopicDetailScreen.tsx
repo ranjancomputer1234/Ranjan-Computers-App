@@ -15,6 +15,7 @@ import { DetailHeader, Screen } from '../../components/layout/Screen';
 import {
   AppText,
   EmptyState,
+  CardAtmosphere,
   ErrorState,
   Gradient,
   LoadingBlock,
@@ -308,8 +309,7 @@ export function TopicDetailScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.hero}
           >
-            <View style={styles.heroGlowOne} />
-            <View style={styles.heroGlowTwo} />
+            <CardAtmosphere />
             <View style={styles.heroTop}>
               <View style={styles.heroIcon}>
                 <Icon name={data.icon as IconName} size={27} color="#FFFFFF" />
@@ -881,24 +881,12 @@ export function TopicDetailScreen() {
 
 const styles = createThemedStyles({
   page: { padding: space.pageX, gap: 16, paddingBottom: 34 },
-  hero: { minHeight: 264, borderRadius: 26, padding: 18, overflow: 'hidden' },
-  heroGlowOne: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    right: -62,
-    top: -70,
-  },
-  heroGlowTwo: {
-    position: 'absolute',
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: 'rgba(56,189,248,0.16)',
-    left: -55,
-    bottom: -68,
+  hero: {
+    minHeight: 264,
+    borderRadius: 26,
+    padding: 18,
+    overflow: 'hidden',
+    boxShadow: '0 18px 32px -20px rgba(17,30,79,0.7)',
   },
   heroTop: {
     flexDirection: 'row',

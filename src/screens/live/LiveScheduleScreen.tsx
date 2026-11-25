@@ -5,7 +5,7 @@ import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget
 import {canRemindLiveClass} from '../../features/live/visibleClasses';
 import {isAuthenticated, useSessionStore} from '../../core/session';
 import {colors, gradients} from '../../theme';
-import {AppText, ClayButton, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
+import {AppText, CardAtmosphere, ClayButton, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
 import {IconButton} from '../../components/ui/Clay';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
@@ -240,6 +240,7 @@ export function LiveScheduleScreen() {
         ))}
 
         <Gradient colors={['#4A148C', '#6A1B9A', '#8E24AA']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.reminderBanner}>
+          <CardAtmosphere />
           <View style={styles.reminderCopy}>
             <Gradient colors={gradients.orangeCta} style={styles.reminderPill}>
               <AppText weight="800" size={8.5} color="#fff" style={{letterSpacing: 1}}>SET REMINDER</AppText>

@@ -5,7 +5,7 @@ import {showLearnerUnavailable} from '../../features/catalog/openPublishedTarget
 import {useQuery} from '@tanstack/react-query';
 import {useRepositories} from '../../core/di';
 import {colors, gradients} from '../../theme';
-import {AppText, ClayButton, ErrorState, LoadingBlock} from '../../components/ui';
+import {AppText, CardAtmosphere, ClayButton, ErrorState, LoadingBlock} from '../../components/ui';
 import {accountKey} from '../../core/session';
 import {Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
@@ -177,6 +177,7 @@ export function PaymentFailureScreen() {
 
         <Pressable accessibilityRole="button" accessibilityLabel="Contact support" onPress={help}>
           <Gradient colors={['#B71C1C', '#E53935', '#EF5350']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.tipBanner}>
+            <CardAtmosphere />
             <View style={styles.tipCopy}>
               <Gradient colors={['#FFD54F', '#FFA000']} style={styles.tipPill}>
                 <AppText weight="800" size={9} color="#fff">

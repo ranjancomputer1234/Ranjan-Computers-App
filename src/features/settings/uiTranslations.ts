@@ -668,6 +668,7 @@ Object.assign(hindi, {
   'Narrow the list by exam family': 'परीक्षा श्रेणी से सूची छाँटें',
   'Choose your goal': 'अपना लक्ष्य चुनें',
   'Pick what you need right now': 'अभी जो चाहिए वह चुनें',
+  'Jump into a random question': 'किसी भी प्रश्न पर कूदें',
   'Explore prep topics': 'तैयारी के विषय देखें',
   'Browse live classes': 'लाइव कक्षाएँ देखें',
   'Attend Live Classes': 'लाइव कक्षाओं में भाग लें',

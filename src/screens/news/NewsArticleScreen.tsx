@@ -16,6 +16,7 @@ import {
   ClayButton,
   ClayCard,
   AppText,
+  CardAtmosphere,
   ErrorState,
   Gradient,
   LoadingBlock,
@@ -284,8 +285,7 @@ export function NewsArticleScreen() {
             />
           ) : null}
           {data.imageUrl ? <View style={styles.heroImageScrim} /> : null}
-          <View style={styles.heroGlowLarge} />
-          <View style={styles.heroGlowSmall} />
+          <CardAtmosphere overImage={Boolean(data.imageUrl)} />
           <View style={styles.heroTopRow}>
             <HeroAction
               icon="back"

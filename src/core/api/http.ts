@@ -155,6 +155,39 @@ function pathOnly(url?: string): string {
   return (url ?? '').split('?')[0];
 }
 
+function errorBody(error: unknown): ApiErrorBody | undefined {
+  if (!axios.isAxiosError(error)) return undefined;
+  const data = error.response?.data;
+  return data && typeof data === 'object' ? (data as ApiErrorBody) : undefined;
+}
+
+/**
+ * A payment 401 while GET /me still succeeds is not a logged-out learner.
+ * Keep the server's reason when it names a provider failure. A bare
+ * unauthorized response stays a sign-in-safe checkout message.
+ */
+function paymentRejectedWhileSignedIn(error: unknown): AppError {
+  const data = errorBody(error);
+  const code = data?.code?.trim() ?? '';
+  const rawMessage = Array.isArray(data?.message) ? data.message.join('\n') : data?.message;
+  const message = rawMessage?.trim() ?? '';
+  if (code && code !== 'UNAUTHORIZED' && message) {
+    return {
+      code,
+      message,
+      httpStatus: 401,
+      fieldErrors: normalizeFieldErrors(data?.fieldErrors),
+      retryable: false,
+    };
+  }
+  return {
+    code: 'payment_unavailable',
+    message: 'Payment could not be started. You are still signed in.',
+    httpStatus: 401,
+    retryable: false,
+  };
+}
+
 /** Checkout calls that the learner API can reject without ending the sign-in. */
 function isPaymentPath(url?: string): boolean {
   const path = pathOnly(url);
@@ -316,12 +349,7 @@ export function createHttpClient(): AxiosInstance {
           tokenStore.onSessionRevoked();
           await clearSessionTokens().catch(() => undefined);
         } else if (alive && isPaymentPath(request.url)) {
-          return Promise.reject({
-            code: 'payment_unavailable',
-            message: 'Payment could not be started. You are still signed in.',
-            httpStatus: 401,
-            retryable: false,
-          } satisfies AppError);
+          return Promise.reject(paymentRejectedWhileSignedIn(error));
         }
       }
       return Promise.reject(toAppError(error));

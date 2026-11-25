@@ -9,7 +9,7 @@ import {isFeatureUnavailable} from '../../core/api/http';
 import {useRepositories} from '../../core/di';
 import {accountKey} from '../../core/session';
 import type {TestResult} from '../../core/types';
-import {AppText, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
+import {AppText, CardAtmosphere, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
 import {ClayCard} from '../../components/ui/Clay';
 import {Gradient} from '../../components/ui/Gradient';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
@@ -94,6 +94,7 @@ export function ResultHistoryScreen() {
           {results.length ? (
             <>
               <Gradient colors={gradients.banner} style={styles.historyHero}>
+                <CardAtmosphere />
                 <View style={styles.historyHeroTop}>
                   <View style={styles.historyHeroIcon}>
                     <Icon name="trophy" size={22} color="#F9A825" />

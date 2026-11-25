@@ -6,7 +6,6 @@ import {
   presentCourse,
   syllabusItems,
 } from '../../features/catalog/courseCopy';
-import {loginPhone} from '../../features/auth/schema';
 import {compactAddress} from '../../features/location/address';
 import {isPublishedResult} from './resultPublication';
 import {playableStream} from '../playback';
@@ -1211,11 +1210,10 @@ export function createHttpRepositories(): Repositories {
   return {
     auth: {
       login: async (identifier, password) => {
-        const phone = loginPhone(identifier);
-        const body = phone
-          ? {phone, password}
-          : {email: identifier.trim().toLowerCase(), password};
-        return toSession(await post<ApiAuth>('/auth/login', body));
+        return toSession(await post<ApiAuth>('/auth/login', {
+          email: identifier.trim().toLowerCase(),
+          password,
+        }));
       },
       register: async input => {
         const split = splitName(input.fullName ?? '');

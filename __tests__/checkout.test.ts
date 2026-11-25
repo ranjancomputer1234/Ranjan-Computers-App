@@ -65,6 +65,18 @@ describe('checkout payment errors', () => {
     });
   });
 
+  it('shows a Razorpay key failure instead of a sign-in message', () => {
+    expect(checkoutAlert({
+      code: 'RAZORPAY_AUTH_FAILED',
+      message: 'Razorpay authentication failed. Check API keys.',
+      retryable: false,
+      httpStatus: 401,
+    })).toEqual({
+      title: 'Could not start purchase',
+      message: 'Razorpay authentication failed. Check API keys.',
+    });
+  });
+
   it('keeps a quote problem readable', () => {
     expect(checkoutAlert(new Error('The quote expired. Please review the updated price.'))).toEqual({
       title: 'Could not start purchase',

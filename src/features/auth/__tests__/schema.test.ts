@@ -12,8 +12,9 @@ describe('auth loginSchema', () => {
     expect(loginSchema.parse({identifier: 'learner@example.com', password: 'sixsix'}).password).toBe('sixsix');
   });
 
-  it('rejects short passwords and invalid identifiers', () => {
+  it('rejects short passwords, phone numbers, and invalid identifiers', () => {
     expect(loginSchema.safeParse({identifier: '123', password: 'short'}).success).toBe(false);
     expect(loginSchema.safeParse({identifier: 'not-an-email', password: 'validpass'}).success).toBe(false);
+    expect(loginSchema.safeParse({identifier: '9876543210', password: 'validpass'}).success).toBe(false);
   });
 });

@@ -65,6 +65,35 @@ it('keeps the learner signed in when checkout is unauthorized but the session st
   expect(tokenStore.getAccessToken()).toBe('old');
 });
 
+it('shows a Razorpay key failure without signing the learner out', async () => {
+  await persistTokens(tokens);
+  const client = createHttpClient();
+  client.defaults.adapter = async config => {
+    const path = (config.url ?? '').split('?')[0];
+    if (path === '/me') return response(config, {id: 'learner-a'});
+    return Promise.reject(new AxiosError(
+      'Unauthorized',
+      'ERR_BAD_REQUEST',
+      config,
+      undefined,
+      {
+        ...response(config, {
+          code: 'RAZORPAY_AUTH_FAILED',
+          message: 'Razorpay authentication failed. Check API keys.',
+          fieldErrors: {},
+        }),
+        status: 401,
+      },
+    ));
+  };
+  await expect(client.post('/payments/create-order', {amount: 100})).rejects.toMatchObject({
+    code: 'RAZORPAY_AUTH_FAILED',
+    message: 'Razorpay authentication failed. Check API keys.',
+    httpStatus: 401,
+  });
+  expect(tokenStore.getAccessToken()).toBe('old');
+});
+
 it('does not forward the access token to absolute third-party URLs', async () => {
   await persistTokens(tokens);
   const client = createHttpClient();

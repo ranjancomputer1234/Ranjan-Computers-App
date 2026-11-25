@@ -26,10 +26,10 @@ const GOOGLE_AUTH_COPY: Record<string, string> = {
   GOOGLE_PROFILE_INCOMPLETE: 'That Google account has no email. Choose an account that includes an email address.',
   GOOGLE_EMAIL_UNVERIFIED: 'Verify that email with Google, then try again.',
   UNAUTHORIZED: 'This account cannot sign in. Contact the institute if you think this is a mistake.',
-  google_not_configured: 'Google sign-in is not connected in this build. Continue with email or mobile number.',
-  google_unavailable: 'Google sign-in is not available on this device. Continue with email or mobile number.',
+  google_not_configured: 'Google sign-in is not connected in this build. Continue with email.',
+  google_unavailable: 'Google sign-in is not available on this device. Continue with email.',
   google_token_missing: 'Google did not return a sign-in token. Try again.',
-  google_failed: 'Google sign-in could not be completed. Continue with email or mobile number.',
+  google_failed: 'Google sign-in could not be completed. Continue with email.',
 };
 
 export function googleSignInAvailable(): boolean {
@@ -60,7 +60,7 @@ export async function signInWithGoogle(): Promise<GoogleAccount> {
   if (!native?.signIn) {
     throw new GoogleSignInError(
       'google_unavailable',
-      'Google sign-in is not available on this device. Continue with email or mobile number.',
+      'Google sign-in is not available on this device. Continue with email.',
     );
   }
   try {

@@ -4,7 +4,7 @@ import {useNavigation} from '@react-navigation/native';
 import {Icon} from '../../assets/icons';
 import {BrandedHeader, Screen} from '../../components/layout/Screen';
 import {ExploreDetailCard} from '../../components/content/ExploreOptions';
-import {AppText, ClayButton, SearchInput} from '../../components/ui';
+import {AppText, CardAtmosphere, ClayButton, SearchInput} from '../../components/ui';
 import {ClayCard} from '../../components/ui/Clay';
 import {Gradient} from '../../components/ui/Gradient';
 import {exploreOptions} from '../../features/catalog/exploreOptions';
@@ -45,6 +45,7 @@ export function ExploreSectionsScreen() {
           start={{x: 0, y: 0}}
           end={{x: 1, y: 1}}
           style={styles.hero}>
+          <CardAtmosphere />
           <AppText weight="800" size={11} color="rgba(255,255,255,0.72)" style={styles.eyebrow}>
             RACI
           </AppText>

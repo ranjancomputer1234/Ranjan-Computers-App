@@ -11,7 +11,7 @@ import {accountKey, isAuthenticated, useSessionStore} from '../../core/session';
 import type {ContentRef, NotificationCategory, NotificationItem, Page} from '../../core/types';
 import {clay, colors, createThemedStyles, gradients, radius, space} from '../../theme';
 import {useTheme} from '../../theme/ThemeProvider';
-import {AppText, ClayButton, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
+import {AppText, CardAtmosphere, ClayButton, EmptyState, ErrorState, LoadingBlock} from '../../components/ui';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {ClayCard} from '../../components/ui/Clay';
 import {Gradient} from '../../components/ui/Gradient';
@@ -323,6 +323,7 @@ export function NotificationsScreen() {
             <View style={styles.headerBlock}>
               {unreadCount > 0 ? (
                 <Gradient colors={gradients.banner} style={styles.hero}>
+                  <CardAtmosphere />
                   <View style={styles.heroCopy}>
                     <AppText weight="900" size={32} color="#fff" style={styles.heroCount}>
                       {unreadCount}

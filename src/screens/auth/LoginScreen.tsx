@@ -66,21 +66,21 @@ export function LoginScreen() {
 
             <View style={styles.field}>
               <AppText weight="700" size={12} color={colors.text2} style={styles.loginFieldLabel}>
-                Email or mobile number
+                Email address
               </AppText>
               <View style={styles.inputSurface}>
-                <Icon name="user" size={18} color={colors.text3} />
+                <Icon name="send" size={18} color={colors.text3} />
                 <TextInput
                   value={identifier}
                   onChangeText={text => form.setValue('identifier', text, {shouldValidate: Boolean(identifierError)})}
-                  placeholder="name@example.com or 10-digit mobile"
+                  placeholder="name@example.com"
                   placeholderTextColor={colors.text3}
-                  accessibilityLabel="Email or mobile number"
-                  keyboardType="default"
+                  accessibilityLabel="Email address"
+                  keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  autoComplete="username"
-                  textContentType="username"
+                  autoComplete="email"
+                  textContentType="emailAddress"
                   style={styles.textInput}
                 />
               </View>

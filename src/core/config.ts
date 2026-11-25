@@ -82,7 +82,7 @@ export const appConfig: AppConfig = {
   seedAccounts: __DEV__ ? seedAccounts(native) : [],
   privacyPolicyUrl: native.privacyPolicyUrl || undefined,
   accountDeletionUrl: native.accountDeletionUrl || undefined,
-  versionName: native.versionName || '1.0.7',
+  versionName: native.versionName || '1.0.8',
   googleWebClientId: native.googleWebClientId || undefined,
   googleMapsApiKey: native.googleMapsApiKey || undefined,
   speechRecognitionEnabled: false,

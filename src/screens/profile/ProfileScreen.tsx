@@ -6,7 +6,7 @@ import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useSessionStore} from '../../core/session';
 import {useAsyncAction} from '../../core/useAsyncAction';
 import {clay, colors, gradients} from '../../theme';
-import {AppText, ClayButton, ErrorState, Skeleton} from '../../components/ui';
+import {AppText, CardAtmosphere, ClayButton, ErrorState, Skeleton} from '../../components/ui';
 import {ClayCard, IconButton} from '../../components/ui/Clay';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
@@ -353,7 +353,7 @@ function AdmitCardBanner({document, onPress}: {document: IssuedDocument; onPress
       onPress={onPress}
       style={({pressed}) => [styles.bannerPressable, pressed && styles.pressed]}>
       <Gradient colors={['#311B92', '#4527A0', '#5E35B1']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.banner}>
-        <View style={styles.bannerGlow} />
+        <CardAtmosphere />
         <View style={styles.bannerCopy}>
           <View style={styles.adminPill}>
             <AppText size={8.5} weight="900" color="#5D4037" style={styles.adminPillText}>

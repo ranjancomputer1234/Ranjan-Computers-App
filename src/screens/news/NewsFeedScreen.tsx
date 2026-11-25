@@ -14,6 +14,7 @@ import { Icon, type IconName } from '../../assets/icons';
 import { DetailHeader, Screen } from '../../components/layout/Screen';
 import {
   AppText,
+  CardAtmosphere,
   ClayButton,
   EmptyState,
   ErrorState,
@@ -143,7 +144,7 @@ function FeaturedStory({
           />
         ) : null}
         {article.imageUrl ? <View style={styles.imageScrim} /> : null}
-        <View style={styles.heroGlow} />
+        <CardAtmosphere overImage={Boolean(article.imageUrl)} />
         {!article.imageUrl ? (
           <Icon name={icon} size={64} color="rgba(255,255,255,0.92)" />
         ) : null}
@@ -619,15 +620,6 @@ const styles = createThemedStyles({
     position: 'absolute',
     inset: 0,
     backgroundColor: 'rgba(5,20,48,0.30)',
-  },
-  heroGlow: {
-    position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    right: -68,
-    top: -92,
-    backgroundColor: 'rgba(255,255,255,0.11)',
   },
   topStoryPill: {
     position: 'absolute',

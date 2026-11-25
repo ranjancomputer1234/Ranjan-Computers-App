@@ -17,7 +17,7 @@ import {queryClient, queryKeys} from '../../core/query';
 import {accountKey, useSessionStore} from '../../core/session';
 import {useDayStreak, useStreakStore} from '../../features/profile/streakStore';
 import {clayShadow, colors, gradients, radius, space} from '../../theme';
-import {AppText, ClayButton, EmptyState, ErrorState, LoadingBlock, ProgressBar} from '../../components/ui';
+import {AppText, CardAtmosphere, ClayButton, EmptyState, ErrorState, LoadingBlock, ProgressBar} from '../../components/ui';
 import {ClayCard, IconButton} from '../../components/ui/Clay';
 import {Gradient} from '../../components/ui/Gradient';
 import {DetailHeader, Screen} from '../../components/layout/Screen';
@@ -192,6 +192,7 @@ export function MyLearningScreen() {
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}>
         <Gradient colors={['#1B5E20', '#2E7D32', '#43A047']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.hero}>
+          <CardAtmosphere />
           <View style={styles.heroCopy}>
             <View style={styles.streakRow}>
               <View style={styles.streakDot} />

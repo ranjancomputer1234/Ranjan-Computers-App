@@ -1,5 +1,6 @@
 export {AppText} from './AppText';
 export {Gradient} from './Gradient';
+export {CardAtmosphere} from './CardAtmosphere';
 export {ClayCard, ClayButton, ClayIconTile, InsetSurface, IconButton} from './Clay';
 export {ClayToggle} from './ClayToggle';
 export {SearchInput, FormField, PasswordInput, PhoneInput} from './Inputs';

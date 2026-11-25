@@ -49,10 +49,10 @@ describe('course copy', () => {
 });
 
 describe('login identifier', () => {
-  it('accepts email and a 10-digit Indian mobile number', () => {
+  it('accepts an email and rejects a mobile number', () => {
     expect(isLoginIdentifier('riya@learner.local')).toBe(true);
-    expect(isLoginIdentifier('9876543210')).toBe(true);
-    expect(isLoginIdentifier('+919876543210')).toBe(true);
+    expect(isLoginIdentifier('9876543210')).toBe(false);
+    expect(isLoginIdentifier('+919876543210')).toBe(false);
     expect(isLoginIdentifier('12345')).toBe(false);
   });
 });

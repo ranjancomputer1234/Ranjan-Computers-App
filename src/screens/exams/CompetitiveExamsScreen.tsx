@@ -19,6 +19,7 @@ import {BrandedHeader, Screen} from '../../components/layout/Screen';
 import {
   AccessBadge,
   AppText,
+  CardAtmosphere,
   EmptyState,
   ErrorState,
   LoadingBlock,
@@ -125,8 +126,7 @@ function DailySprint({
       start={{x: 0, y: 0}}
       end={{x: 1, y: 1}}
       style={[styles.sprint, compact && styles.sprintCompact]}>
-      <View style={styles.sprintGlowTop} />
-      <View style={styles.sprintGlowBottom} />
+      <CardAtmosphere />
       <View style={styles.sprintCopy}>
         <View style={styles.sprintEyebrow}>
           <View style={styles.liveDot} />
@@ -669,24 +669,6 @@ const styles = createThemedStyles({
     boxShadow: '0 18px 30px -20px rgba(13,71,161,0.85)',
   },
   sprintCompact: {minHeight: 238},
-  sprintGlowTop: {
-    position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: 'rgba(93,177,255,0.13)',
-    right: -72,
-    top: -105,
-  },
-  sprintGlowBottom: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    left: -67,
-    bottom: -88,
-  },
   sprintCopy: {flex: 1, padding: 18, justifyContent: 'center', zIndex: 2},
   sprintEyebrow: {flexDirection: 'row', alignItems: 'center', gap: 7},
   liveDot: {

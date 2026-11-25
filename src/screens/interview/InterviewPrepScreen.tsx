@@ -4,7 +4,7 @@ import {useNavigation} from '@react-navigation/native';
 import {promptPayToEnrol} from '../../features/catalog/payToEnrol';
 import {useQuery} from '@tanstack/react-query';
 import {Icon, type IconName} from '../../assets/icons';
-import {AppText, ClayButton, EmptyState, ErrorState, FilterChip, LoadingBlock, SearchInput} from '../../components/ui';
+import {AppText, CardAtmosphere, ClayButton, EmptyState, ErrorState, FilterChip, LoadingBlock, SearchInput} from '../../components/ui';
 import {ClayCard, ClayIconTile} from '../../components/ui/Clay';
 import {BrandedHeader, Screen} from '../../components/layout/Screen';
 import {Gradient} from '../../components/ui/Gradient';
@@ -55,6 +55,10 @@ export function InterviewPrepScreen() {
     () => categoriesQuery.data?.items ?? [],
     [categoriesQuery.data?.items],
   );
+  const practiceCategories = React.useMemo(
+    () => categories.filter(item => item.id !== 'int-mock'),
+    [categories],
+  );
   const questions = questionsQuery.data ?? [];
   const categoryById = React.useMemo(
     () => new Map(categories.map(item => [item.id, item])),
@@ -69,12 +73,12 @@ export function InterviewPrepScreen() {
       categoryName.toLowerCase().includes(normalizedSearch);
     return matchesTopic && matchesSearch;
   });
-  const visibleCategories = categories.filter(item =>
+  const visibleCategories = practiceCategories.filter(item =>
     !normalizedSearch || item.title.toLowerCase().includes(normalizedSearch),
   );
   const displayedQuestions = showAllQuestions ? visibleQuestions : visibleQuestions.slice(0, 3);
   const warmupQuestions = visibleQuestions.length ? visibleQuestions : questions;
-  const freeTopicCount = categories.filter(item => item.access.state === 'granted').length;
+  const freeTopicCount = practiceCategories.filter(item => item.access.state === 'granted').length;
 
   const openQuestion = (question: InterviewQuestion) => {
     navigation.navigate('InterviewQuestion', {questionId: question.id});
@@ -99,7 +103,6 @@ export function InterviewPrepScreen() {
     navigation.navigate('InterviewQuestionList', {categoryId: item.id});
   };
 
-  const mockCategory = categories.find(item => item.id === 'int-mock');
   const hasError = categoriesQuery.isError || questionsQuery.isError;
   const isLoading = categoriesQuery.isLoading || questionsQuery.isLoading;
 
@@ -136,8 +139,7 @@ export function InterviewPrepScreen() {
           start={{x: 0, y: 0}}
           end={{x: 1, y: 1}}
           style={styles.hero}>
-          <View style={styles.heroGlowLarge} />
-          <View style={styles.heroGlowSmall} />
+          <CardAtmosphere />
           <View style={styles.heroCopy}>
             <View style={styles.heroLabel}>
               <Icon name="zap" size={11} color="#CFFAF1" />
@@ -184,29 +186,18 @@ export function InterviewPrepScreen() {
           <View>
             <AppText weight="900" size={17} color={theme.colors.navy}>Practice your way</AppText>
             <AppText size={11} color={theme.colors.text2} style={styles.sectionSubtitle}>
-              Pick what you need right now
+              Jump into a random question
             </AppText>
           </View>
         </View>
-        <View style={styles.actionRow}>
-          <QuickAction
-            title="Surprise me"
-            body="Try a random question"
-            icon="refresh"
-            color={clay.purple.icon}
-            background={theme.colors.pastel.purple}
-            onPress={questions.length ? surpriseMe : undefined}
-          />
-          <QuickAction
-            title="1-on-1 mock"
-            body="Get guided feedback"
-            icon="video"
-            color={clay.orange.icon}
-            background={theme.colors.pastel.orange}
-            badge="PRO"
-            onPress={mockCategory ? () => openCategory(mockCategory) : undefined}
-          />
-        </View>
+        <QuickAction
+          title="Surprise me"
+          body="Try a random question"
+          icon="refresh"
+          color={clay.purple.icon}
+          background={theme.colors.pastel.purple}
+          onPress={questions.length ? surpriseMe : undefined}
+        />
 
         <View style={styles.sectionHeader}>
           <View>
@@ -237,7 +228,7 @@ export function InterviewPrepScreen() {
               setShowAllQuestions(false);
             }}
           />
-          {categories.filter(item => item.id !== 'int-mock').map(item => (
+          {practiceCategories.map(item => (
             <FilterChip
               key={item.id}
               label={shortTopicNames[item.id] ?? item.title}
@@ -337,7 +328,6 @@ function QuickAction({
   icon,
   color,
   background,
-  badge,
   onPress,
 }: {
   title: string;
@@ -345,7 +335,6 @@ function QuickAction({
   icon: IconName;
   color: string;
   background: string;
-  badge?: string;
   onPress?: () => void;
 }) {
   return (
@@ -355,20 +344,14 @@ function QuickAction({
       disabled={!onPress}
       onPress={onPress}
       style={({pressed}) => [styles.quickAction, {backgroundColor: background}, pressed && styles.pressed]}>
-      <View style={styles.quickActionTop}>
-        <View style={styles.quickIcon}>
-          <Icon name={icon} size={18} color={color} />
-        </View>
-        {badge ? (
-          <View style={[styles.proBadge, {backgroundColor: color}]}>
-            <AppText weight="900" size={7.5} color="#FFFFFF">{badge}</AppText>
-          </View>
-        ) : (
-          <Icon name="chev" size={14} color={color} />
-        )}
+      <View style={styles.quickIcon}>
+        <Icon name={icon} size={18} color={color} />
       </View>
-      <AppText weight="900" size={13} color={colors.navy}>{title}</AppText>
-      <AppText size={10} color={colors.text2}>{body}</AppText>
+      <View style={styles.quickCopy}>
+        <AppText weight="900" size={13} color={colors.navy}>{title}</AppText>
+        <AppText size={10} color={colors.text2}>{body}</AppText>
+      </View>
+      <Icon name="chev" size={14} color={color} />
     </Pressable>
   );
 }

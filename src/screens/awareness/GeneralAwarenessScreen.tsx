@@ -17,6 +17,7 @@ import {BrandedHeader, Screen} from '../../components/layout/Screen';
 import {
   AppText,
   EmptyState,
+  CardAtmosphere,
   ErrorState,
   Gradient,
   LoadingBlock,
@@ -253,8 +254,7 @@ export function GeneralAwarenessScreen() {
               start={{x: 0, y: 0}}
               end={{x: 1, y: 1}}
               style={styles.hero}>
-              <View style={styles.heroGlowOne} />
-              <View style={styles.heroGlowTwo} />
+              <CardAtmosphere />
               <View style={styles.heroContent}>
                 <View style={styles.heroEyebrow}>
                   <Icon name="target" size={13} color="#BAE6FD" />
@@ -447,6 +447,7 @@ const styles = createThemedStyles({
     padding: 17,
     flexDirection: 'row',
     overflow: 'hidden',
+    boxShadow: '0 18px 32px -20px rgba(23,37,84,0.7)',
   },
   heroContent: {flex: 1, zIndex: 2, gap: 9},
   heroEyebrow: {flexDirection: 'row', alignItems: 'center', gap: 6},
@@ -473,24 +474,6 @@ const styles = createThemedStyles({
     zIndex: 2,
   },
   heroSpark: {position: 'absolute', top: 38, right: 2},
-  heroGlowOne: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    right: -38,
-    top: -55,
-  },
-  heroGlowTwo: {
-    position: 'absolute',
-    width: 105,
-    height: 105,
-    borderRadius: 53,
-    backgroundColor: 'rgba(125,211,252,0.12)',
-    right: 24,
-    bottom: -70,
-  },
   quickRow: {flexDirection: 'row', gap: 10},
   quickCard: {
     flex: 1,

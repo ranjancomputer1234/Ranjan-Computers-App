@@ -19,6 +19,7 @@ import {
   ClayIconTile,
   EmptyState,
   ErrorState,
+  CardAtmosphere,
   Gradient,
   LoadingBlock,
 } from '../../components/ui';
@@ -113,8 +114,7 @@ function FeaturedFact({
       end={{ x: 1, y: 1 }}
       style={styles.hero}
     >
-      <View style={styles.heroGlowLarge} />
-      <View style={styles.heroGlowSmall} />
+      <CardAtmosphere />
       <View style={styles.heroArt}>
         <View style={styles.orbitOuter}>
           <View style={styles.orbitInner}>
@@ -530,24 +530,6 @@ const styles = createThemedStyles({
     justifyContent: 'flex-end',
     overflow: 'hidden',
     boxShadow: '0 18px 30px -18px rgba(76,29,149,0.8)',
-  },
-  heroGlowLarge: {
-    position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    right: -82,
-    top: -90,
-    backgroundColor: 'rgba(196,181,253,0.13)',
-  },
-  heroGlowSmall: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    left: -55,
-    bottom: -55,
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   heroArt: { position: 'absolute', right: 19, top: 17 },
   orbitOuter: {

@@ -84,15 +84,7 @@ export const styles = createThemedStyles({
     padding: 15,
     justifyContent: 'center',
     boxShadow: '0 16px 26px -16px rgba(49,27,146,0.75)',
-  },
-  bannerGlow: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    right: -82,
-    top: -66,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
   },
   bannerCopy: {width: '74%', gap: 8, zIndex: 1},
   adminPill: {
